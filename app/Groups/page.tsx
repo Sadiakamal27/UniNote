@@ -47,15 +47,26 @@ export default function GroupsPage() {
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
 
+    // If auth is already loaded, fetch immediately
     if (!authLoading) {
       loadData();
+    } else {
+      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
+      timeoutId = setTimeout(() => {
+        if (isMounted) {
+          loadData();
+        }
+      }, 3000);
     }
 
     return () => {
       isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [authLoading, loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]);
 
   const handleJoinRequest = async (groupId: string) => {
     if (!user) {
@@ -74,10 +85,26 @@ export default function GroupsPage() {
     }
   };
 
-  const handleCreateGroup = async (name: string, description: string) => {
+  const handleCreateGroup = async (name: string, description: string, memberEmails?: string[]) => {
     if (!user) return;
     try {
-      await GroupService.createGroup(name, description, user.id);
+      const group = await GroupService.createGroup(name, description, user.id);
+      
+      // Add members if provided
+      if (memberEmails && memberEmails.length > 0) {
+        const result = await GroupService.addMembersToGroup(group.id, memberEmails);
+        
+        if (result.added.length > 0) {
+          toast.success(`${result.added.length} member(s) added to the group`);
+        }
+        if (result.notFound.length > 0) {
+          toast.warning(`${result.notFound.length} email(s) not found: ${result.notFound.join(", ")}`);
+        }
+        if (result.alreadyMembers.length > 0) {
+          toast.info(`${result.alreadyMembers.length} user(s) are already members`);
+        }
+      }
+      
       toast.success("Group created successfully!");
       loadData();
     } catch (error) {

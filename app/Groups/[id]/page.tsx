@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PostCard } from "@/components/feed/PostCard";
 import { MemberManagement } from "@/components/groups/MemberManagement";
+import { PendingPostCard } from "@/components/admin/PendingPostCard";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,6 +30,7 @@ export default function GroupDetailPage() {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
   const [isMember, setIsMember] = useState<boolean | null>(null);
   const [membershipStatus, setMembershipStatus] = useState<
     "member" | "pending" | "none"
@@ -48,7 +50,16 @@ export default function GroupDetailPage() {
       setIsMember(isMember);
       setIsAdmin(isAdmin);
       setMembershipStatus(membershipStatus);
+      // Posts are already filtered in getGroupDetails - approved for members, all for admins
       setPosts(posts);
+
+      // Fetch pending posts if admin
+      if (isAdmin) {
+        const pending = await GroupService.fetchPendingGroupPosts(groupId);
+        setPendingPosts(pending);
+      } else {
+        setPendingPosts([]);
+      }
     } catch (error) {
       console.error("Error fetching group details:", error);
       toast.error("Failed to load group details");
@@ -59,15 +70,30 @@ export default function GroupDetailPage() {
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
 
-    if (!authLoading && isMounted) {
-      fetchDetails();
+    const fetchData = () => {
+      if (isMounted) {
+        fetchDetails();
+      }
+    };
+
+    // If auth is already loaded, fetch immediately
+    if (!authLoading) {
+      fetchData();
+    } else {
+      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
+      timeoutId = setTimeout(() => {
+        fetchData();
+      }, 3000);
     }
 
     return () => {
       isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [authLoading, fetchDetails]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, groupId]);
 
   const handleJoinRequest = async () => {
     if (!user) {
@@ -107,7 +133,8 @@ export default function GroupDetailPage() {
     );
   }
 
-  if (membershipStatus === "pending") {
+  // Universal admins can access even if not a member, so only show pending screen for regular users
+  if (membershipStatus === "pending" && !isAdmin) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 space-y-6">
         <div className="h-20 w-20 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto">
@@ -126,7 +153,8 @@ export default function GroupDetailPage() {
     );
   }
 
-  if (isMember === false) {
+  // Universal admins can access all groups, so check if user is not a member AND not an admin
+  if (isMember === false && !isAdmin) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 space-y-6">
         <div className="h-20 w-20 bg-destructive/10 rounded-full flex items-center justify-center mx-auto">
@@ -183,10 +211,21 @@ export default function GroupDetailPage() {
             Group Notes
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="admin" className="gap-2 text-primary">
-              <ShieldCheck className="h-4 w-4" />
-              Manage Group
-            </TabsTrigger>
+            <>
+              <TabsTrigger value="pending" className="gap-2">
+                <Clock className="h-4 w-4" />
+                Pending Notes
+                {pendingPosts.length > 0 && (
+                  <span className="ml-1 bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {pendingPosts.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="admin" className="gap-2 text-primary">
+                <ShieldCheck className="h-4 w-4" />
+                Manage Group
+              </TabsTrigger>
+            </>
           )}
         </TabsList>
 
@@ -238,11 +277,40 @@ export default function GroupDetailPage() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="admin">
-            <div className="max-w-4xl">
-              <MemberManagement groupId={groupId} />
-            </div>
-          </TabsContent>
+          <>
+            <TabsContent value="pending">
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold">Pending Notes</h2>
+                  <p className="text-muted-foreground">
+                    Review and approve notes submitted to this group
+                  </p>
+                </div>
+                {pendingPosts.length > 0 ? (
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {pendingPosts.map((post) => (
+                      <PendingPostCard
+                        key={post.id}
+                        post={post}
+                        onUpdate={fetchDetails}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border-2 border-dashed rounded-xl bg-muted/30">
+                    <p className="text-muted-foreground">
+                      No pending notes to review
+                    </p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="admin">
+              <div className="max-w-4xl">
+                <MemberManagement groupId={groupId} />
+              </div>
+            </TabsContent>
+          </>
         )}
       </Tabs>
     </div>

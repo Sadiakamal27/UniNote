@@ -10,7 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heart, MessageCircle, Eye, Calendar } from "lucide-react";
+import { Heart, MessageCircle, Eye, Calendar, Paperclip } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 
@@ -95,6 +95,12 @@ export function PostCard({ post, onViewPost, onLike }: PostCardProps) {
                 +{post.tags.length - 3} more
               </Badge>
             )}
+          </div>
+        )}
+        {post.attachments && Array.isArray(post.attachments) && post.attachments.length > 0 && (
+          <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+            <Paperclip className="h-3 w-3" />
+            <span>{post.attachments.length} attachment{post.attachments.length !== 1 ? 's' : ''}</span>
           </div>
         )}
       </CardContent>

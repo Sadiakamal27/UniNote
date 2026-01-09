@@ -65,10 +65,23 @@ export default function AdminDashboard() {
       }
     }
 
+    let timeoutId: NodeJS.Timeout;
+
+    // If auth is already loaded, fetch immediately
     if (!authLoading) {
       fetchStats();
+    } else {
+      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
+      timeoutId = setTimeout(() => {
+        fetchStats();
+      }, 3000);
     }
-  }, [authLoading]);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, profile?.id]);
 
   const displayLoading = loading || authLoading;
 

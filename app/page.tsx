@@ -87,10 +87,23 @@ export default function FeedPage() {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    // If auth is already loaded, fetch immediately
     if (!authLoading) {
       fetchPosts();
+    } else {
+      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
+      timeoutId = setTimeout(() => {
+        fetchPosts();
+      }, 3000);
     }
-  }, [user, authLoading]);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]);
 
   const handleLike = async (postId: string) => {
     if (!user) return;

@@ -24,11 +24,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, X, Plus, Loader2 } from "lucide-react";
+import { Send, X, Plus, Loader2, Upload, File, Image, FileText } from "lucide-react";
 
 interface Folder {
   id: string;
   name: string;
+}
+
+interface UploadedFile {
+  file: File;
+  url?: string;
+  path?: string;
+  uploading?: boolean;
 }
 
 export default function CreateNotePage() {
@@ -51,13 +58,34 @@ export default function CreateNotePage() {
     []
   );
   const [loading, setLoading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const fetchData = () => {
+      if (user) {
+        fetchFolders();
+        fetchUserGroups();
+      }
+    };
+
+    // If auth is already loaded, fetch immediately
     if (!authLoading && user) {
-      fetchFolders();
-      fetchUserGroups();
+      fetchData();
+    } else if (user) {
+      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
+      timeoutId = setTimeout(() => {
+        fetchData();
+      }, 3000);
     }
-  }, [user, authLoading]);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   const fetchUserGroups = async () => {
     if (!user) return;
@@ -109,6 +137,178 @@ export default function CreateNotePage() {
     setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
+  // File validation
+  const isValidFileType = (file: File): boolean => {
+    const validTypes = [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+      "application/msword", // .doc
+      "text/plain", // .txt
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ];
+    const validExtensions = [".pdf", ".docx", ".doc", ".txt", ".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    
+    const fileExtension = "." + file.name.split(".").pop()?.toLowerCase();
+    return validTypes.includes(file.type) || validExtensions.includes(fileExtension);
+  };
+
+  // Handle file selection
+  const handleFileSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (!user) {
+      toast.error("You must be logged in to upload files");
+      return;
+    }
+
+    const newFiles: UploadedFile[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      // Validate file type
+      if (!isValidFileType(file)) {
+        toast.error(`${file.name} is not a supported file type. Please upload PDF, DOCX, TXT, or image files.`);
+        continue;
+      }
+
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} is too large. Maximum file size is 10MB.`);
+        continue;
+      }
+
+      newFiles.push({ file, uploading: false });
+    }
+
+    if (newFiles.length > 0) {
+      setUploadedFiles((prev) => [...prev, ...newFiles]);
+    }
+  };
+
+  // Upload file to Supabase Storage
+  const uploadFileToStorage = async (uploadedFile: UploadedFile): Promise<{
+    url: string;
+    name: string;
+    type: string;
+    size: number;
+  } | null> => {
+    if (!user) return null;
+
+    try {
+      const fileExt = uploadedFile.file.name.split(".").pop();
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(7);
+      const fileName = `${user.id}/${timestamp}-${randomStr}.${fileExt}`;
+      const filePath = `post-attachments/${fileName}`;
+
+      console.log("Uploading file:", uploadedFile.file.name, "to path:", filePath);
+
+      // Check if bucket exists (this will fail if bucket doesn't exist)
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("attachments")
+        .upload(filePath, uploadedFile.file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("Upload error details:", uploadError);
+        
+        // Provide more helpful error messages
+        if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("does not exist")) {
+          throw new Error("Storage bucket 'attachments' not found. Please create it in Supabase Storage settings.");
+        } else if (uploadError.message?.includes("new row violates row-level security")) {
+          throw new Error("Permission denied. Please check storage bucket policies.");
+        } else {
+          throw new Error(uploadError.message || "Failed to upload file");
+        }
+      }
+
+      if (!uploadData) {
+        throw new Error("Upload returned no data");
+      }
+
+      console.log("File uploaded successfully:", uploadData);
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("attachments")
+        .getPublicUrl(filePath);
+
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error("Failed to get public URL for uploaded file");
+      }
+
+      const publicUrl = urlData.publicUrl;
+      console.log("Public URL:", publicUrl);
+
+      return {
+        url: publicUrl,
+        name: uploadedFile.file.name,
+        type: uploadedFile.file.type || `application/${fileExt}`,
+        size: uploadedFile.file.size,
+      };
+    } catch (error: any) {
+      console.error("Error uploading file:", error);
+      throw error;
+    }
+  };
+
+  // Remove file from list
+  const handleRemoveFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    handleFileSelect(e.dataTransfer.files);
+  };
+
+  // Get file icon
+  const getFileIcon = (fileName: string) => {
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext || "")) {
+      return <Image className="h-4 w-4" />;
+    }
+    if (ext === "pdf") {
+      return <File className="h-4 w-4" />;
+    }
+    return <FileText className="h-4 w-4" />;
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -125,24 +325,100 @@ export default function CreateNotePage() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from("posts").insert({
+      // Upload files first
+      const attachmentData: Array<{
+        url: string;
+        name: string;
+        type: string;
+        size: number;
+      }> = [];
+      
+      if (uploadedFiles.length > 0) {
+        toast.info(`Uploading ${uploadedFiles.length} file(s)...`);
+        
+        // Update files with uploading state
+        setUploadedFiles((prev) =>
+          prev.map((f) => ({ ...f, uploading: true }))
+        );
+
+        // Upload all files
+        const uploadPromises = uploadedFiles.map(async (uploadedFile) => {
+          try {
+            const fileData = await uploadFileToStorage(uploadedFile);
+            if (fileData) {
+              console.log("File uploaded successfully:", fileData);
+              return fileData;
+            }
+            return null;
+          } catch (error: any) {
+            console.error("Error uploading file:", error);
+            const errorMessage = error?.message || "Unknown error";
+            toast.error(`Failed to upload ${uploadedFile.file.name}: ${errorMessage}`);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(uploadPromises);
+        const successfulUploads = results.filter((result): result is NonNullable<typeof result> => result !== null);
+        
+        attachmentData.push(...successfulUploads);
+        
+        console.log("All files uploaded. Total:", attachmentData.length);
+        console.log("Attachment data:", attachmentData);
+
+        if (successfulUploads.length < uploadedFiles.length) {
+          toast.warning(
+            `Only ${successfulUploads.length} of ${uploadedFiles.length} file(s) uploaded successfully.`
+          );
+        }
+      }
+
+      // Create post with attachments
+      const postData = {
         title: title.trim(),
         content: content.trim(),
         author_id: user.id,
         post_type: postType,
-        approval_status: postType === "public" ? "pending" : "approved", // Group posts are auto-approved for now or handle later
+        approval_status: "pending", // Both public and group posts require approval
         folder_id: folderId || null,
         group_id: postType === "group" ? groupId : null,
         tags: tags.length > 0 ? tags : null,
-      });
+        attachments: attachmentData.length > 0 ? attachmentData : null,
+      };
 
-      if (error) throw error;
+      console.log("Creating post with data:", postData);
 
-      toast.success(
-        postType === "public"
-          ? "Note submitted for admin approval!"
-          : "Note submitted for group admin approval!"
-      );
+      const { data: insertedPost, error } = await supabase
+        .from("posts")
+        .insert(postData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creating post:", error);
+        throw error;
+      }
+
+      console.log("Post created successfully:", insertedPost);
+      
+      // Verify attachments were saved
+      if (attachmentData.length > 0 && insertedPost) {
+        console.log("Post attachments:", insertedPost.attachments);
+        if (!insertedPost.attachments || (Array.isArray(insertedPost.attachments) && insertedPost.attachments.length === 0)) {
+          console.warn("Warning: Attachments were uploaded but not saved to post");
+          toast.warning("Note created but attachments may not have been saved. Please check.");
+        } else {
+          console.log("Attachments verified in post:", insertedPost.attachments);
+        }
+      }
+
+      const successMessage = attachmentData.length > 0
+        ? `Note with ${attachmentData.length} attachment(s) submitted for approval!`
+        : postType === "public"
+        ? "Note submitted for admin approval!"
+        : "Note submitted for group admin approval!";
+
+      toast.success(successMessage);
 
       // Reset form
       setTitle("");
@@ -150,6 +426,7 @@ export default function CreateNotePage() {
       setTags([]);
       setFolderId("");
       setPostType("public");
+      setUploadedFiles([]);
 
       // Redirect to profile
       router.push("/Profile");
@@ -341,6 +618,94 @@ export default function CreateNotePage() {
                       </button>
                     </Badge>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label>Attachments (Optional)</Label>
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 transition-colors ${
+                  isDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                }`}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <div className="text-center">
+                    <p className="text-sm font-medium">
+                      Drag and drop files here, or click to select
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      PDF, DOCX, TXT, or images (Max 10MB per file)
+                    </p>
+                  </div>
+                  <input
+                    type="file"
+                    id="file-upload"
+                    className="hidden"
+                    multiple
+                    accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.webp"
+                    onChange={(e) => handleFileSelect(e.target.files)}
+                    disabled={loading}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      document.getElementById("file-upload")?.click()
+                    }
+                    disabled={loading}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Select Files
+                  </Button>
+                </div>
+              </div>
+
+              {/* Uploaded Files List */}
+              {uploadedFiles.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  <p className="text-sm font-medium">Uploaded Files:</p>
+                  <div className="space-y-2">
+                    {uploadedFiles.map((uploadedFile, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {getFileIcon(uploadedFile.file.name)}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {uploadedFile.file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(uploadedFile.file.size)}
+                            </p>
+                          </div>
+                          {uploadedFile.uploading && (
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveFile(index)}
+                          disabled={loading || uploadedFile.uploading}
+                          className="h-8 w-8"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

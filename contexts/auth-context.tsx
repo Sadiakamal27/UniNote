@@ -60,23 +60,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  // Initialize auth state
+  // Initialize auth state - only runs once on mount
   useEffect(() => {
+    let isMounted = true;
+    let hasInitialized = false;
+    let subscription: { unsubscribe: () => void } | null = null;
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (!isMounted || hasInitialized) return;
+        hasInitialized = true;
+        
+        if (error) {
+          console.error("Error getting session:", error);
+          if (isMounted) {
+            setLoading(false);
+          }
+          return;
+        }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
+        
+        if (isMounted) {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
-      data: { subscription },
+      data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
+        if (!isMounted) return;
+        
+        // Skip INITIAL_SESSION event if we already handled it via getSession
+        if (event === "INITIAL_SESSION" && hasInitialized) {
+          return;
+        }
+        
         console.log("Auth state changed:", event);
         setSession(session);
         setUser(session?.user ?? null);
@@ -87,7 +126,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(null);
         }
 
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
 
         // Handle redirects
         if (event === "SIGNED_IN") {
@@ -98,10 +139,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
+    subscription = authSubscription;
+
     return () => {
-      subscription.unsubscribe();
+      isMounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only initialize once on mount
 
   // Sign in function
   const signIn = useCallback(async (email: string, password: string) => {

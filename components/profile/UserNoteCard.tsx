@@ -21,10 +21,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Edit, Trash2, Eye, Calendar, AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Edit, Trash2, Eye, Calendar, AlertCircle, Paperclip, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PostModal } from "@/components/feed/PostModal";
 
 interface UserNoteCardProps {
   post: Post;
@@ -34,6 +46,11 @@ interface UserNoteCardProps {
 export function UserNoteCard({ post, onUpdate }: UserNoteCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(post.title);
+  const [editContent, setEditContent] = useState(post.content);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -50,6 +67,37 @@ export function UserNoteCard({ post, onUpdate }: UserNoteCardProps) {
       toast.error("Failed to delete note");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editTitle.trim() || !editContent.trim()) {
+      toast.error("Title and content are required");
+      return;
+    }
+
+    setEditing(true);
+    try {
+      const { error } = await supabase
+        .from("posts")
+        .update({
+          title: editTitle.trim(),
+          content: editContent.trim(),
+          approval_status: "pending", // Reset to pending after edit
+          rejection_reason: null, // Clear rejection reason if any
+        })
+        .eq("id", post.id);
+
+      if (error) throw error;
+
+      toast.success("Note updated successfully. It will require re-approval.");
+      setEditDialogOpen(false);
+      onUpdate();
+    } catch (error) {
+      console.error("Error updating post:", error);
+      toast.error("Failed to update note");
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -110,6 +158,12 @@ export function UserNoteCard({ post, onUpdate }: UserNoteCardProps) {
               ))}
             </div>
           )}
+          {post.attachments && Array.isArray(post.attachments) && post.attachments.length > 0 && (
+            <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+              <Paperclip className="h-3 w-3" />
+              <span>{post.attachments.length} attachment{post.attachments.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
           {post.approval_status === "rejected" && post.rejection_reason && (
             <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
               <div className="flex items-start gap-2">
@@ -128,12 +182,26 @@ export function UserNoteCard({ post, onUpdate }: UserNoteCardProps) {
         </CardContent>
         <CardFooter className="flex gap-2 border-t pt-4">
           {post.approval_status === "pending" && (
-            <Button variant="outline" size="sm" className="flex-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex-1"
+              onClick={() => {
+                setEditTitle(post.title);
+                setEditContent(post.content);
+                setEditDialogOpen(true);
+              }}
+            >
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
           )}
-          <Button variant="outline" size="sm" className="flex-1">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex-1"
+            onClick={() => setViewModalOpen(true)}
+          >
             <Eye className="h-4 w-4 mr-2" />
             View
           </Button>
@@ -168,6 +236,68 @@ export function UserNoteCard({ post, onUpdate }: UserNoteCardProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Modal */}
+      <PostModal
+        post={post}
+        open={viewModalOpen}
+        onOpenChange={setViewModalOpen}
+      />
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Note</DialogTitle>
+            <DialogDescription>
+              Update your note. Changes will require re-approval.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Title</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                disabled={editing}
+                placeholder="Enter note title..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-content">Content</Label>
+              <Textarea
+                id="edit-content"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                disabled={editing}
+                placeholder="Write your note content here..."
+                rows={12}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              disabled={editing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEdit} disabled={editing || !editTitle.trim() || !editContent.trim()}>
+              {editing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Note"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

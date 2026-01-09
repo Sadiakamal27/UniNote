@@ -13,7 +13,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Heart, MessageCircle, Calendar, Send } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Calendar,
+  Send,
+  File,
+  Image,
+  FileText,
+  Download,
+  ExternalLink,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
@@ -32,11 +42,14 @@ export function PostModal({ post, open, onOpenChange }: PostModalProps) {
   );
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
+  const [isLiked, setIsLiked] = useState(post?.user_has_liked || false);
+  const [likeCount, setLikeCount] = useState(post?.like_count || 0);
 
   useEffect(() => {
     if (post && open) {
+      // Initialize with post data if available
+      setLikeCount(post.like_count || 0);
+      setIsLiked(post.user_has_liked || false);
       fetchComments();
       fetchLikeStatus();
     }
@@ -197,6 +210,89 @@ export function PostModal({ post, open, onOpenChange }: PostModalProps) {
                   {tag}
                 </Badge>
               ))}
+            </div>
+          )}
+
+          {/* Attachments */}
+          {post.attachments && (
+            <div className="space-y-2">
+              <h4 className="font-semibold text-sm">Attachments</h4>
+              <div className="space-y-2">
+                {Array.isArray(post.attachments) ? (
+                  post.attachments.map((attachment: any, index: number) => {
+                    const url =
+                      typeof attachment === "string"
+                        ? attachment
+                        : attachment.url;
+                    const name =
+                      typeof attachment === "string"
+                        ? `Attachment ${index + 1}`
+                        : attachment.name || `Attachment ${index + 1}`;
+                    const type =
+                      typeof attachment === "string"
+                        ? "unknown"
+                        : attachment.type || "unknown";
+
+                    const isImage =
+                      type.startsWith("image/") ||
+                      ["jpg", "jpeg", "png", "gif", "webp"].some((ext) =>
+                        name.toLowerCase().endsWith(`.${ext}`)
+                      );
+                    const isPdf =
+                      type === "application/pdf" ||
+                      name.toLowerCase().endsWith(".pdf");
+
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {isImage ? (
+                            <Image className="h-5 w-5 text-blue-500 shrink-0" />
+                          ) : isPdf ? (
+                            <File className="h-5 w-5 text-red-500 shrink-0" />
+                          ) : (
+                            <FileText className="h-5 w-5 text-gray-500 shrink-0" />
+                          )}
+                          <span className="text-sm font-medium truncate">
+                            {name}
+                          </span>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(url, "_blank")}
+                            className="h-8"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const link = document.createElement("a");
+                              link.href = url;
+                              link.download = name;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }}
+                            className="h-8"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No attachments available
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

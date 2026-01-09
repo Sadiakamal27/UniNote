@@ -44,10 +44,29 @@ export function FolderTree({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const fetchData = () => {
+      if (user) {
+        fetchFolders();
+      }
+    };
+
+    // If auth is already loaded, fetch immediately
     if (!authLoading && user) {
-      fetchFolders();
+      fetchData();
+    } else if (user) {
+      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
+      timeoutId = setTimeout(() => {
+        fetchData();
+      }, 3000);
     }
-  }, [user, authLoading]);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   const fetchFolders = async () => {
     if (!user) return;

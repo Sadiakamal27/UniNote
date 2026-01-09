@@ -34,19 +34,33 @@ export default function ProfilePage() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authLoading) {
+    let timeoutId: NodeJS.Timeout;
+
+    const initData = async () => {
       if (user) {
-        const initData = async () => {
-          setLoading(true);
-          await Promise.all([fetchUserPosts(), fetchStats()]);
-          setLoading(false);
-        };
-        initData();
+        setLoading(true);
+        await Promise.all([fetchUserPosts(), fetchStats()]);
+        setLoading(false);
       } else {
         setLoading(false); // Resolve guest loading state
       }
+    };
+
+    // If auth is already loaded, fetch immediately
+    if (!authLoading) {
+      initData();
+    } else {
+      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
+      timeoutId = setTimeout(() => {
+        initData();
+      }, 3000);
     }
-  }, [user, authLoading]);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   const fetchUserPosts = async () => {
     if (!user) return;
@@ -69,6 +83,14 @@ export default function ProfilePage() {
     if (!user) return;
 
     try {
+      // First fetch posts to get IDs for likes calculation
+      const { data: userPosts } = await supabase
+        .from("posts")
+        .select("id")
+        .eq("author_id", user.id);
+
+      const postIds = userPosts?.map((p) => p.id) || [];
+
       const [
         { count: totalNotes },
         { count: approvedNotes },
@@ -89,13 +111,12 @@ export default function ProfilePage() {
           .select("*", { count: "exact", head: true })
           .eq("author_id", user.id)
           .eq("approval_status", "pending"),
-        supabase
-          .from("post_likes")
-          .select("*", { count: "exact", head: true })
-          .in(
-            "post_id",
-            posts.map((p) => p.id)
-          ),
+        postIds.length > 0
+          ? supabase
+              .from("post_likes")
+              .select("*", { count: "exact", head: true })
+              .in("post_id", postIds)
+          : Promise.resolve({ count: 0 }),
       ]);
 
       setStats({

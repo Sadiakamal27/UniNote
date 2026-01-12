@@ -12,6 +12,9 @@ import { Search, Users, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
+export const revalidate = 60;
+
+
 export default function GroupsPage() {
   const { user, loading: authLoading } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
@@ -85,26 +88,39 @@ export default function GroupsPage() {
     }
   };
 
-  const handleCreateGroup = async (name: string, description: string, memberEmails?: string[]) => {
+  const handleCreateGroup = async (
+    name: string,
+    description: string,
+    memberEmails?: string[]
+  ) => {
     if (!user) return;
     try {
       const group = await GroupService.createGroup(name, description, user.id);
-      
+
       // Add members if provided
       if (memberEmails && memberEmails.length > 0) {
-        const result = await GroupService.addMembersToGroup(group.id, memberEmails);
-        
+        const result = await GroupService.addMembersToGroup(
+          group.id,
+          memberEmails
+        );
+
         if (result.added.length > 0) {
           toast.success(`${result.added.length} member(s) added to the group`);
         }
         if (result.notFound.length > 0) {
-          toast.warning(`${result.notFound.length} email(s) not found: ${result.notFound.join(", ")}`);
+          toast.warning(
+            `${
+              result.notFound.length
+            } email(s) not found: ${result.notFound.join(", ")}`
+          );
         }
         if (result.alreadyMembers.length > 0) {
-          toast.info(`${result.alreadyMembers.length} user(s) are already members`);
+          toast.info(
+            `${result.alreadyMembers.length} user(s) are already members`
+          );
         }
       }
-      
+
       toast.success("Group created successfully!");
       loadData();
     } catch (error) {

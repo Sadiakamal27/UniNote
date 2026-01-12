@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Heart, MessageCircle, Eye, Calendar, Paperclip } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+export const revalidate = 60;
+
 
 interface PostCardProps {
   post: Post & {

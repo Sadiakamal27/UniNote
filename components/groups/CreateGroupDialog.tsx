@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, X, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+export const revalidate = 60;
 
 interface CreateGroupDialogProps {
   open: boolean;

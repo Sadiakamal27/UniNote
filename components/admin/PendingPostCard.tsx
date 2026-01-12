@@ -22,7 +22,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, Eye, Calendar, User, File, Image, FileText, Download, ExternalLink, Paperclip } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Eye,
+  Calendar,
+  User,
+  File,
+  Image,
+  FileText,
+  Download,
+  ExternalLink,
+  Paperclip,
+} from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -157,12 +169,17 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
               ))}
             </div>
           )}
-          {post.attachments && Array.isArray(post.attachments) && post.attachments.length > 0 && (
-            <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-              <Paperclip className="h-3 w-3" />
-              <span>{post.attachments.length} attachment{post.attachments.length !== 1 ? 's' : ''}</span>
-            </div>
-          )}
+          {post.attachments &&
+            Array.isArray(post.attachments) &&
+            post.attachments.length > 0 && (
+              <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                <Paperclip className="h-3 w-3" />
+                <span>
+                  {post.attachments.length} attachment
+                  {post.attachments.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
         </CardContent>
         <CardFooter className="flex gap-2">
           <Button
@@ -226,20 +243,28 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
               <div className="space-y-2">
                 {Array.isArray(post.attachments) ? (
                   post.attachments.map((attachment: any, index: number) => {
-                    const url = typeof attachment === 'string' ? attachment : attachment.url;
-                    const name = typeof attachment === 'string' 
-                      ? `Attachment ${index + 1}` 
-                      : attachment.name || `Attachment ${index + 1}`;
-                    const type = typeof attachment === 'string' 
-                      ? 'unknown' 
-                      : attachment.type || 'unknown';
-                    
-                    const isImage = type.startsWith('image/') || 
-                      ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => 
+                    const url =
+                      typeof attachment === "string"
+                        ? attachment
+                        : attachment.url;
+                    const name =
+                      typeof attachment === "string"
+                        ? `Attachment ${index + 1}`
+                        : attachment.name || `Attachment ${index + 1}`;
+                    const type =
+                      typeof attachment === "string"
+                        ? "unknown"
+                        : attachment.type || "unknown";
+
+                    const isImage =
+                      type.startsWith("image/") ||
+                      ["jpg", "jpeg", "png", "gif", "webp"].some((ext) =>
                         name.toLowerCase().endsWith(`.${ext}`)
                       );
-                    const isPdf = type === 'application/pdf' || name.toLowerCase().endsWith('.pdf');
-                    
+                    const isPdf =
+                      type === "application/pdf" ||
+                      name.toLowerCase().endsWith(".pdf");
+
                     return (
                       <div
                         key={index}
@@ -253,13 +278,15 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
                           ) : (
                             <FileText className="h-5 w-5 text-gray-500 shrink-0" />
                           )}
-                          <span className="text-sm font-medium truncate">{name}</span>
+                          <span className="text-sm font-medium truncate">
+                            {name}
+                          </span>
                         </div>
                         <div className="flex gap-2 shrink-0">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => window.open(url, '_blank')}
+                            onClick={() => window.open(url, "_blank")}
                             className="h-8"
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -268,7 +295,7 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              const link = document.createElement('a');
+                              const link = document.createElement("a");
                               link.href = url;
                               link.download = name;
                               document.body.appendChild(link);
@@ -284,7 +311,9 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
                     );
                   })
                 ) : (
-                  <p className="text-sm text-muted-foreground">No attachments available</p>
+                  <p className="text-sm text-muted-foreground">
+                    No attachments available
+                  </p>
                 )}
               </div>
             </div>

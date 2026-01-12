@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase, Post } from "@/lib/supabase";
 import { PostCard } from "@/components/feed/PostCard";
 import { PostModal } from "@/components/feed/PostModal";
@@ -9,12 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
+export const revalidate = 60;
+
 export default function FeedPage() {
   const { user, loading: authLoading } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const hasLoadedRef = useRef(false);
+  const lastUserIdRef = useRef<string | undefined>();
 
   const fetchPosts = async () => {
     try {
@@ -87,22 +91,17 @@ export default function FeedPage() {
   };
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    // If auth is already loaded, fetch immediately
+    // Only fetch if auth is loaded and either:
+    // 1. We haven't loaded data yet, or
+    // 2. The user has changed
     if (!authLoading) {
-      fetchPosts();
-    } else {
-      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
-      timeoutId = setTimeout(() => {
+      const userChanged = lastUserIdRef.current !== user?.id;
+      if (!hasLoadedRef.current || userChanged) {
+        hasLoadedRef.current = true;
+        lastUserIdRef.current = user?.id;
         fetchPosts();
-      }, 3000);
+      }
     }
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
 
   const handleLike = async (postId: string) => {

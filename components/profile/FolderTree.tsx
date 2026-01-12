@@ -14,8 +14,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Folder, Plus, ChevronRight, ChevronDown } from "lucide-react";
+import {
+  Folder,
+  Plus,
+  ChevronRight,
+  ChevronDown,
+  FilePlus2,
+} from "lucide-react";
 import { toast } from "sonner";
+import { AddNotesToFolderDialog } from "./AddNotesToFolderDialog";
 
 interface FolderNode {
   id: string;
@@ -27,11 +34,13 @@ interface FolderNode {
 interface FolderTreeProps {
   selectedFolder: string | null;
   onSelectFolder: (folderId: string | null) => void;
+  onNotesUpdated?: () => void;
 }
 
 export function FolderTree({
   selectedFolder,
   onSelectFolder,
+  onNotesUpdated,
 }: FolderTreeProps) {
   const { user, loading: authLoading } = useAuth();
   const [folders, setFolders] = useState<FolderNode[]>([]);
@@ -42,6 +51,11 @@ export function FolderTree({
   const [newFolderName, setNewFolderName] = useState("");
   const [parentFolderId, setParentFolderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [addNotesDialogOpen, setAddNotesDialogOpen] = useState(false);
+  const [selectedFolderForNotes, setSelectedFolderForNotes] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -112,19 +126,34 @@ export function FolderTree({
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("folders").insert({
-        name: newFolderName.trim(),
-        user_id: user.id,
-        parent_folder_id: parentFolderId,
-      });
+      const { data, error } = await supabase
+        .from("folders")
+        .insert({
+          name: newFolderName.trim(),
+          user_id: user.id,
+          parent_folder_id: parentFolderId,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
-      toast.success("Folder created");
+      toast.success("Folder created!");
+
+      const createdFolder = data;
       setNewFolderName("");
       setParentFolderId(null);
       setCreateDialogOpen(false);
       await fetchFolders();
+
+      // Open the add notes dialog for the newly created folder
+      if (createdFolder) {
+        setSelectedFolderForNotes({
+          id: createdFolder.id,
+          name: createdFolder.name,
+        });
+        setAddNotesDialogOpen(true);
+      }
     } catch (error) {
       console.error("Error creating folder:", error);
       toast.error("Failed to create folder");
@@ -151,30 +180,46 @@ export function FolderTree({
     return (
       <div key={folder.id}>
         <div
-          className={`flex items-center gap-2 py-2 px-2 rounded-md cursor-pointer hover:bg-muted transition-colors ${
+          className={`flex items-center gap-2 py-2 px-2 rounded-md hover:bg-muted transition-colors group ${
             isSelected ? "bg-primary/10 text-primary" : ""
           }`}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
-          onClick={() => onSelectFolder(folder.id)}
         >
-          {hasChildren && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFolder(folder.id);
-              }}
-              className="p-0.5 hover:bg-muted-foreground/20 rounded"
-            >
-              {isExpanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </button>
-          )}
-          {!hasChildren && <div className="w-5" />}
-          <Folder className="h-4 w-4" />
-          <span className="text-sm truncate flex-1">{folder.name}</span>
+          <div
+            className="flex items-center gap-2 flex-1 cursor-pointer"
+            onClick={() => onSelectFolder(folder.id)}
+          >
+            {hasChildren && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFolder(folder.id);
+                }}
+                className="p-0.5 hover:bg-muted-foreground/20 rounded"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
+            )}
+            {!hasChildren && <div className="w-5" />}
+            <Folder className="h-4 w-4" />
+            <span className="text-sm truncate flex-1">{folder.name}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedFolderForNotes({ id: folder.id, name: folder.name });
+              setAddNotesDialogOpen(true);
+            }}
+          >
+            <FilePlus2 className="h-3 w-3" />
+          </Button>
         </div>
         {isExpanded && hasChildren && (
           <div>
@@ -245,6 +290,20 @@ export function FolderTree({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Notes to Folder Dialog */}
+      {user && selectedFolderForNotes && (
+        <AddNotesToFolderDialog
+          open={addNotesDialogOpen}
+          onOpenChange={setAddNotesDialogOpen}
+          folderId={selectedFolderForNotes.id}
+          folderName={selectedFolderForNotes.name}
+          userId={user.id}
+          onNotesAdded={() => {
+            if (onNotesUpdated) onNotesUpdated();
+          }}
+        />
+      )}
     </div>
   );
 }

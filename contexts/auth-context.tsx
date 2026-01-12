@@ -69,11 +69,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
         if (!isMounted || hasInitialized) return;
         hasInitialized = true;
-        
+
         if (error) {
           console.error("Error getting session:", error);
           if (isMounted) {
@@ -81,16 +84,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           return;
         }
-        
+
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
           await fetchProfile(session.user.id);
         } else {
           setProfile(null);
         }
-        
+
         if (isMounted) {
           setLoading(false);
         }
@@ -110,12 +113,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
         if (!isMounted) return;
-        
+
         // Skip INITIAL_SESSION event if we already handled it via getSession
         if (event === "INITIAL_SESSION" && hasInitialized) {
           return;
         }
-        
+
+        // Skip token refresh events - they don't change the user
+        if (event === "TOKEN_REFRESHED") {
+          setSession(session);
+          return;
+        }
+
         console.log("Auth state changed:", event);
         setSession(session);
         setUser(session?.user ?? null);

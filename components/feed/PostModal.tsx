@@ -29,6 +29,9 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
 
+export const revalidate = 60;
+
+
 interface PostModalProps {
   post: (Post & { author?: Profile }) | null;
   open: boolean;

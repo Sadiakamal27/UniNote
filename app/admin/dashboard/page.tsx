@@ -178,12 +178,14 @@ export default function AdminDashboard() {
                 </div>
               </Button>
             </Link>
-            <Button className="w-full h-20 text-lg" variant="outline" disabled>
-              <div className="flex flex-col items-center gap-2">
-                <Users className="h-6 w-6" />
-                <span>Manage Users</span>
-              </div>
-            </Button>
+            <Link href="/admin/users">
+              <Button className="w-full h-20 text-lg" variant="outline">
+                <div className="flex flex-col items-center gap-2">
+                  <Users className="h-6 w-6" />
+                  <span>Manage Users</span>
+                </div>
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>

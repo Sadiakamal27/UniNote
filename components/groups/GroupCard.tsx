@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Users, ChevronRight, UserPlus, Clock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+export const revalidate = 60;
 
 interface GroupCardProps {
   group: Group;

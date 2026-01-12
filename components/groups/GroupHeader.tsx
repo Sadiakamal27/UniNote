@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 interface GroupHeaderProps {
   onCreateClick: () => void;
 }
+export const revalidate = 60;
 
 export function GroupHeader({ onCreateClick }: GroupHeaderProps) {
   return (

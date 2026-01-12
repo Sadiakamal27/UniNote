@@ -34,32 +34,14 @@ export default function ProfilePage() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    const initData = async () => {
-      if (user) {
-        setLoading(true);
-        await Promise.all([fetchUserPosts(), fetchStats()]);
+    if (!authLoading && user) {
+      setLoading(true);
+      Promise.all([fetchUserPosts(), fetchStats()]).finally(() => {
         setLoading(false);
-      } else {
-        setLoading(false); // Resolve guest loading state
-      }
-    };
-
-    // If auth is already loaded, fetch immediately
-    if (!authLoading) {
-      initData();
-    } else {
-      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
-      timeoutId = setTimeout(() => {
-        initData();
-      }, 3000);
+      });
+    } else if (!authLoading && !user) {
+      setLoading(false);
     }
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, authLoading]);
 
   const fetchUserPosts = async () => {
@@ -145,14 +127,13 @@ export default function ProfilePage() {
     return "U";
   };
 
-  const filterPostsByStatus = (status: string) => {
-    if (status === "all") return posts;
-    return posts.filter((post) => post.approval_status === status);
-  };
-
-  const filterPostsByFolder = (folderId: string | null) => {
-    if (!folderId) return posts;
-    return posts.filter((post) => post.folder_id === folderId);
+  const getFilteredPosts = (status: string) => {
+    return posts.filter((post) => {
+      const matchesStatus = status === "all" || post.approval_status === status;
+      const matchesFolder =
+        !selectedFolder || post.folder_id === selectedFolder;
+      return matchesStatus && matchesFolder;
+    });
   };
 
   const displayLoading = loading || authLoading;
@@ -250,6 +231,7 @@ export default function ProfilePage() {
               <FolderTree
                 selectedFolder={selectedFolder}
                 onSelectFolder={setSelectedFolder}
+                onNotesUpdated={fetchUserPosts}
               />
             </CardContent>
           </Card>
@@ -257,74 +239,92 @@ export default function ProfilePage() {
 
         {/* Notes Grid */}
         <div className="lg:col-span-3">
-          <Tabs defaultValue="all">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="rejected">Rejected</TabsTrigger>
-            </TabsList>
+          {displayLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <Tabs defaultValue="all">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="approved">Approved</TabsTrigger>
+                <TabsTrigger value="pending">Pending</TabsTrigger>
+                <TabsTrigger value="rejected">Rejected</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="all" className="space-y-4 mt-4">
-              {displayLoading ? (
-                <div className="flex justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                </div>
-              ) : filterPostsByFolder(selectedFolder).length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">
-                    No notes yet. Create your first note!
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {filterPostsByFolder(selectedFolder).map((post) => (
-                    <UserNoteCard
-                      key={post.id}
-                      post={post}
-                      onUpdate={fetchUserPosts}
-                    />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
+              <TabsContent value="all" className="space-y-4 mt-4">
+                {getFilteredPosts("all").length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No notes found.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {getFilteredPosts("all").map((post) => (
+                      <UserNoteCard
+                        key={post.id}
+                        post={post}
+                        onUpdate={fetchUserPosts}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
 
-            <TabsContent value="approved" className="space-y-4 mt-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                {filterPostsByStatus("approved").map((post) => (
-                  <UserNoteCard
-                    key={post.id}
-                    post={post}
-                    onUpdate={fetchUserPosts}
-                  />
-                ))}
-              </div>
-            </TabsContent>
+              <TabsContent value="approved" className="space-y-4 mt-4">
+                {getFilteredPosts("approved").length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No approved notes found.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {getFilteredPosts("approved").map((post) => (
+                      <UserNoteCard
+                        key={post.id}
+                        post={post}
+                        onUpdate={fetchUserPosts}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
 
-            <TabsContent value="pending" className="space-y-4 mt-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                {filterPostsByStatus("pending").map((post) => (
-                  <UserNoteCard
-                    key={post.id}
-                    post={post}
-                    onUpdate={fetchUserPosts}
-                  />
-                ))}
-              </div>
-            </TabsContent>
+              <TabsContent value="pending" className="space-y-4 mt-4">
+                {getFilteredPosts("pending").length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No pending notes found.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {getFilteredPosts("pending").map((post) => (
+                      <UserNoteCard
+                        key={post.id}
+                        post={post}
+                        onUpdate={fetchUserPosts}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
 
-            <TabsContent value="rejected" className="space-y-4 mt-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                {filterPostsByStatus("rejected").map((post) => (
-                  <UserNoteCard
-                    key={post.id}
-                    post={post}
-                    onUpdate={fetchUserPosts}
-                  />
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="rejected" className="space-y-4 mt-4">
+                {getFilteredPosts("rejected").length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No rejected notes found.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {getFilteredPosts("rejected").map((post) => (
+                      <UserNoteCard
+                        key={post.id}
+                        post={post}
+                        onUpdate={fetchUserPosts}
+                      />
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </div>
 

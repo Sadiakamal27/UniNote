@@ -39,22 +39,9 @@ export default function PendingPostsPage() {
   };
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    // If auth is already loaded, fetch immediately
     if (!authLoading) {
       fetchPendingPosts();
-    } else {
-      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
-      timeoutId = setTimeout(() => {
-        fetchPendingPosts();
-      }, 3000);
     }
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
 
   const displayLoading = loading || authLoading;

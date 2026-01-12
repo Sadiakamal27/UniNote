@@ -22,7 +22,10 @@ export const GroupService = {
           .eq("status", "approved");
 
         if (countError) {
-          console.error(`Error counting members for group ${group.id}:`, countError);
+          console.error(
+            `Error counting members for group ${group.id}:`,
+            countError
+          );
           return { ...group, member_count: group.member_count || 0 };
         }
 
@@ -87,22 +90,62 @@ export const GroupService = {
         name,
         description,
         created_by: creatorId,
-        member_count: 1,
+        member_count: 1, // Will be updated after adding members
       })
       .select()
       .single();
 
     if (groupError) throw groupError;
 
-    // 2. Add creator as admin member
-    const { error: memberError } = await supabase.from("group_members").insert({
-      group_id: group.id,
-      user_id: creatorId,
-      is_admin: true,
-      status: "approved",
-    });
+    // 2. Find the universal admin
+    const { data: universalAdminProfile, error: adminError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_role", "universal_admin")
+      .limit(1)
+      .maybeSingle();
+
+    if (adminError) {
+      console.error("Error fetching universal admin:", adminError);
+    }
+
+    // 3. Prepare memberships to insert
+    const memberships = [
+      // Add creator as admin
+      {
+        group_id: group.id,
+        user_id: creatorId,
+        is_admin: true,
+        status: "approved",
+      },
+    ];
+
+    // Add universal admin as admin (if exists and is not the creator)
+    if (universalAdminProfile && universalAdminProfile.id !== creatorId) {
+      memberships.push({
+        group_id: group.id,
+        user_id: universalAdminProfile.id,
+        is_admin: true,
+        status: "approved",
+      });
+    }
+
+    // 4. Insert all memberships
+    const { error: memberError } = await supabase
+      .from("group_members")
+      .insert(memberships);
 
     if (memberError) throw memberError;
+
+    // 5. Update the member count
+    const { error: updateError } = await supabase
+      .from("groups")
+      .update({ member_count: memberships.length })
+      .eq("id", group.id);
+
+    if (updateError) {
+      console.error("Error updating member count:", updateError);
+    }
 
     return group;
   },
@@ -179,7 +222,7 @@ export const GroupService = {
         .select("user_role")
         .eq("id", userId)
         .single();
-      
+
       isUniversalAdmin = profile?.user_role === "universal_admin";
     }
 
@@ -203,8 +246,10 @@ export const GroupService = {
         ? status === "approved"
           ? "member"
           : "pending"
-        : isUniversalAdmin ? "member" : "none";
-      isAdmin = (memberData?.is_admin || false) || isUniversalAdmin; // Universal admins are admins of all groups
+        : isUniversalAdmin
+        ? "member"
+        : "none";
+      isAdmin = memberData?.is_admin || false || isUniversalAdmin; // Universal admins are admins of all groups
 
       // 4. If approved member (or universal admin), fetch posts
       if (isMember) {
@@ -218,17 +263,22 @@ export const GroupService = {
           `
           )
           .eq("group_id", groupId);
-        
+
         // Only show approved posts to regular members, admins can see pending too
         // Always exclude rejected posts
         if (!isAdmin) {
           queryBuilder = queryBuilder.eq("approval_status", "approved");
         } else {
-          queryBuilder = queryBuilder.in("approval_status", ["pending", "approved"]);
+          queryBuilder = queryBuilder.in("approval_status", [
+            "pending",
+            "approved",
+          ]);
         }
-        
-        const { data: postsData, error: postsError } = await queryBuilder
-          .order("created_at", { ascending: false });
+
+        const { data: postsData, error: postsError } = await queryBuilder.order(
+          "created_at",
+          { ascending: false }
+        );
 
         if (postsError) {
           console.error(
@@ -239,17 +289,23 @@ export const GroupService = {
             .from("posts")
             .select("*")
             .eq("group_id", groupId);
-          
+
           // Always exclude rejected posts
           if (!isAdmin) {
-            simpleQueryBuilder = simpleQueryBuilder.eq("approval_status", "approved");
+            simpleQueryBuilder = simpleQueryBuilder.eq(
+              "approval_status",
+              "approved"
+            );
           } else {
-            simpleQueryBuilder = simpleQueryBuilder.in("approval_status", ["pending", "approved"]);
+            simpleQueryBuilder = simpleQueryBuilder.in("approval_status", [
+              "pending",
+              "approved",
+            ]);
           }
-          
-          const { data: simplePosts, error: simpleError } = await simpleQueryBuilder
-            .order("created_at", { ascending: false });
-          
+
+          const { data: simplePosts, error: simpleError } =
+            await simpleQueryBuilder.order("created_at", { ascending: false });
+
           if (simpleError) throw simpleError;
           posts = simplePosts || [];
 
@@ -307,7 +363,13 @@ export const GroupService = {
       }
     }
 
-    return { group: groupWithCount, isMember, isAdmin, membershipStatus, posts };
+    return {
+      group: groupWithCount,
+      isMember,
+      isAdmin,
+      membershipStatus,
+      posts,
+    };
   },
 
   /**
@@ -405,7 +467,11 @@ export const GroupService = {
   async addMembersToGroup(
     groupId: string,
     emails: string[]
-  ): Promise<{ added: string[]; notFound: string[]; alreadyMembers: string[] }> {
+  ): Promise<{
+    added: string[];
+    notFound: string[];
+    alreadyMembers: string[];
+  }> {
     const result = {
       added: [] as string[],
       notFound: [] as string[],
@@ -446,9 +512,10 @@ export const GroupService = {
 
       // Filter out existing members and prepare new memberships
       const newUserIds = userIds.filter((id) => !existingUserIds.has(id));
-      const existingEmails = profiles
-        ?.filter((p) => existingUserIds.has(p.id))
-        .map((p) => p.email) || [];
+      const existingEmails =
+        profiles
+          ?.filter((p) => existingUserIds.has(p.id))
+          .map((p) => p.email) || [];
       result.alreadyMembers.push(...existingEmails);
 
       // Add new members
@@ -466,9 +533,10 @@ export const GroupService = {
 
         if (insertError) throw insertError;
 
-        const addedEmails = profiles
-          ?.filter((p) => newUserIds.includes(p.id))
-          .map((p) => p.email) || [];
+        const addedEmails =
+          profiles
+            ?.filter((p) => newUserIds.includes(p.id))
+            .map((p) => p.email) || [];
         result.added.push(...addedEmails);
 
         // Update member_count in groups table
@@ -488,5 +556,81 @@ export const GroupService = {
     }
 
     return result;
+  },
+
+  /**
+   * Delete a group and all associated data
+   */
+  async deleteGroup(groupId: string) {
+    // Note: Supabase should handle cascading deletes if configured properly
+    // But we'll explicitly delete related data to be safe
+
+    // 1. Delete all group members
+    const { error: membersError } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", groupId);
+
+    if (membersError) {
+      console.error("Error deleting group members:", membersError);
+      // Continue anyway to try to delete the group
+    }
+
+    // 2. Delete all posts in the group
+    const { error: postsError } = await supabase
+      .from("posts")
+      .delete()
+      .eq("group_id", groupId);
+
+    if (postsError) {
+      console.error("Error deleting group posts:", postsError);
+      // Continue anyway to try to delete the group
+    }
+
+    // 3. Delete the group itself
+    const { error: groupError } = await supabase
+      .from("groups")
+      .delete()
+      .eq("id", groupId);
+
+    if (groupError) throw groupError;
+  },
+
+  /**
+   * Toggle admin status for a user in a specific group (Universal Admin only)
+   */
+  async toggleGroupAdmin(groupId: string, userId: string, makeAdmin: boolean) {
+    const { error } = await supabase
+      .from("group_members")
+      .update({ is_admin: makeAdmin })
+      .eq("group_id", groupId)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Remove a user from a group (Universal Admin only)
+   */
+  async removeUserFromGroup(groupId: string, userId: string) {
+    const { error } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+
+    // Update member count
+    const { count: memberCount } = await supabase
+      .from("group_members")
+      .select("*", { count: "exact", head: true })
+      .eq("group_id", groupId)
+      .eq("status", "approved");
+
+    await supabase
+      .from("groups")
+      .update({ member_count: memberCount || 0 })
+      .eq("id", groupId);
   },
 };

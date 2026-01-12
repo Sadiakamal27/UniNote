@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { GroupService } from "@/lib/groups";
-import { Group, Post } from "@/lib/supabase";
+import { Group, Post, supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeft,
@@ -14,13 +14,25 @@ import {
   Plus,
   Clock,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { PostCard } from "@/components/feed/PostCard";
 import { MemberManagement } from "@/components/groups/MemberManagement";
 import { PendingPostCard } from "@/components/admin/PendingPostCard";
+import { PostModal } from "@/components/feed/PostModal";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function GroupDetailPage() {
   const params = useParams();
@@ -37,6 +49,9 @@ export default function GroupDetailPage() {
   >("none");
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
   const fetchDetails = useCallback(async () => {
     if (!groupId) return;
@@ -69,31 +84,10 @@ export default function GroupDetailPage() {
   }, [groupId, user?.id]);
 
   useEffect(() => {
-    let isMounted = true;
-    let timeoutId: NodeJS.Timeout;
-
-    const fetchData = () => {
-      if (isMounted) {
-        fetchDetails();
-      }
-    };
-
-    // If auth is already loaded, fetch immediately
     if (!authLoading) {
-      fetchData();
-    } else {
-      // Set a timeout to fetch even if auth is taking too long (max 3 seconds)
-      timeoutId = setTimeout(() => {
-        fetchData();
-      }, 3000);
+      fetchDetails();
     }
-
-    return () => {
-      isMounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id, groupId]);
+  }, [authLoading, user?.id, groupId, fetchDetails]);
 
   const handleJoinRequest = async () => {
     if (!user) {
@@ -108,6 +102,50 @@ export default function GroupDetailPage() {
     } catch (error) {
       console.error("Error joining group:", error);
       toast.error("Failed to join group");
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!groupId) return;
+
+    try {
+      setDeleting(true);
+      await GroupService.deleteGroup(groupId);
+      toast.success("Group deleted successfully");
+      router.push("/Groups");
+    } catch (error) {
+      console.error("Error deleting group:", error);
+      toast.error("Failed to delete group");
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  const handleLike = async (postId: string) => {
+    if (!user) return;
+
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+
+    try {
+      if (post.user_has_liked) {
+        await supabase
+          .from("post_likes")
+          .delete()
+          .eq("post_id", postId)
+          .eq("user_id", user.id);
+      } else {
+        await supabase
+          .from("post_likes")
+          .insert({ post_id: postId, user_id: user.id });
+      }
+
+      // Refresh posts to update counts
+      await fetchDetails();
+    } catch (error) {
+      console.error("Error liking post:", error);
+      toast.error("Failed to update like");
     }
   };
 
@@ -237,7 +275,12 @@ export default function GroupDetailPage() {
               {posts.length > 0 ? (
                 <div className="space-y-4">
                   {posts.map((post) => (
-                    <PostCard key={post.id} post={post} onViewPost={() => {}} />
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      onViewPost={setSelectedPost}
+                      onLike={handleLike}
+                    />
                   ))}
                 </div>
               ) : (
@@ -306,13 +349,83 @@ export default function GroupDetailPage() {
               </div>
             </TabsContent>
             <TabsContent value="admin">
-              <div className="max-w-4xl">
+              <div className="max-w-4xl space-y-8">
                 <MemberManagement groupId={groupId} />
+
+                {/* Danger Zone */}
+                <div className="border-2 border-destructive/50 rounded-lg p-6 bg-destructive/5">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-destructive flex items-center gap-2">
+                        <Trash2 className="h-5 w-5" />
+                        Danger Zone
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Permanently delete this group and all associated data.
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      className="gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Group
+                    </Button>
+                  </div>
+                </div>
               </div>
             </TabsContent>
           </>
         )}
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              group "{group?.name}", remove all members, and delete all notes
+              posted in this group.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteGroup}
+              disabled={deleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Group
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Post Modal */}
+      <PostModal
+        post={selectedPost}
+        open={!!selectedPost}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedPost(null);
+            // Refresh to get updated counts after modal closes
+            fetchDetails();
+          }
+        }}
+      />
     </div>
   );
 }

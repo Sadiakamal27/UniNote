@@ -26,7 +26,10 @@ export async function checkUserRole(requiredRole: UserRole): Promise<boolean> {
       user: 1,
     };
 
-    return roleHierarchy[profile.user_role] >= roleHierarchy[requiredRole];
+    return (
+      roleHierarchy[profile.user_role as UserRole] >=
+      roleHierarchy[requiredRole]
+    );
   } catch (error) {
     console.error("Error checking user role:", error);
     return false;

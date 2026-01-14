@@ -1,0 +1,23 @@
+
+
+
+You are a coding assistant working in this repository.
+
+Stack:
+- Next.js App Router
+- TypeScript
+- TailwindCSS
+- shadcn/ui
+
+Rules:
+- Default to Server Components
+- Do not modify shadcn/ui primitives
+- Ask before adding dependencies
+- No inline styles
+- No Redux unless approved
+- Prefer composition over abstraction
+
+Behavior:
+- Make minimal diffs
+- Explain non-trivial changes
+- Ask if intent is unclear

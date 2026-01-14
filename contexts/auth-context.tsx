@@ -7,6 +7,7 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { supabase, Profile } from "@/lib/supabase";
@@ -21,7 +22,8 @@ interface AuthContextType {
   signUp: (
     email: string,
     password: string,
-    fullName: string
+    fullName: string,
+    username: string
   ) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -35,6 +37,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  // Track current user ID to prevent redundant SIGNED_IN events
+  const currentUserIdRef = useRef<string | null>(null);
 
   // Fetch user profile
   const fetchProfile = async (userId: string) => {
@@ -87,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setSession(session);
         setUser(session?.user ?? null);
+        currentUserIdRef.current = session?.user?.id ?? null;
 
         if (session?.user) {
           await fetchProfile(session.user.id);
@@ -125,9 +131,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        console.log("Auth state changed:", event);
+        // Skip SIGNED_IN events if we already have a user with the same ID
+        // This prevents unnecessary re-renders when the tab becomes active
+        if (
+          event === "SIGNED_IN" &&
+          currentUserIdRef.current &&
+          session?.user?.id === currentUserIdRef.current
+        ) {
+          console.log(
+            "Auth state changed: SIGNED_IN (skipped - already signed in)",
+            {
+              currentUserId: currentUserIdRef.current,
+              sessionUserId: session?.user?.id,
+            }
+          );
+          return;
+        }
+
+        console.log("Auth state changed:", event, {
+          currentUserId: currentUserIdRef.current,
+          newUserId: session?.user?.id,
+          willUpdateState: true,
+        });
         setSession(session);
         setUser(session?.user ?? null);
+        currentUserIdRef.current = session?.user?.id ?? null;
 
         if (session?.user) {
           await fetchProfile(session.user.id);
@@ -141,9 +169,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Handle redirects
         if (event === "SIGNED_IN") {
-          router.push("/");
+          if (window.location.pathname === "/login") {
+            router.push("/");
+          }
         } else if (event === "SIGNED_OUT") {
-          router.push("/login");
+          if (window.location.pathname !== "/login") {
+            router.push("/login");
+          }
         }
       }
     );
@@ -174,17 +206,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sign up function
   const signUp = useCallback(
-    async (email: string, password: string, fullName: string) => {
+    async (
+      email: string,
+      password: string,
+      fullName: string,
+      username: string
+    ) => {
       try {
-        const { error } = await supabase.auth.signUp({
+        // First, check if username is already taken
+        const { data: existingUser, error: checkError } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("username", username.toLowerCase())
+          .maybeSingle();
+
+        if (checkError && checkError.code !== "PGRST116") {
+          return { error: checkError };
+        }
+
+        if (existingUser) {
+          return { error: { message: "Username is already taken" } };
+        }
+
+        // Create the auth user
+        const { data: authData, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
               full_name: fullName,
+              username: username.toLowerCase(),
             },
           },
         });
+
         return { error };
       } catch (error) {
         return { error };

@@ -12,9 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heart, MessageCircle, Eye, Calendar, Paperclip } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 export const revalidate = 60;
-
 
 interface PostCardProps {
   post: Post & {
@@ -30,6 +29,12 @@ interface PostCardProps {
 export function PostCard({ post, onViewPost, onLike }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.user_has_liked || false);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
+
+  // Sync with props when they change externally (e.g. via realtime)
+  useEffect(() => {
+    setIsLiked(post.user_has_liked || false);
+    setLikeCount(post.like_count || 0);
+  }, [post.user_has_liked, post.like_count]);
 
   const getInitials = (name: string | null) => {
     if (!name) return "U";
@@ -99,12 +104,17 @@ export function PostCard({ post, onViewPost, onLike }: PostCardProps) {
             )}
           </div>
         )}
-        {post.attachments && Array.isArray(post.attachments) && post.attachments.length > 0 && (
-          <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-            <Paperclip className="h-3 w-3" />
-            <span>{post.attachments.length} attachment{post.attachments.length !== 1 ? 's' : ''}</span>
-          </div>
-        )}
+        {post.attachments &&
+          Array.isArray(post.attachments) &&
+          post.attachments.length > 0 && (
+            <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+              <Paperclip className="h-3 w-3" />
+              <span>
+                {post.attachments.length} attachment
+                {post.attachments.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
       </CardContent>
       <CardFooter className="flex items-center justify-between border-t pt-4">
         <div className="flex items-center gap-4">

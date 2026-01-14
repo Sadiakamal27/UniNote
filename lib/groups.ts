@@ -462,11 +462,11 @@ export const GroupService = {
   },
 
   /**
-   * Add members to a group by email (for group admins)
+   * Add members to a group by username (for group admins)
    */
   async addMembersToGroup(
     groupId: string,
-    emails: string[]
+    usernames: string[]
   ): Promise<{
     added: string[];
     notFound: string[];
@@ -478,21 +478,24 @@ export const GroupService = {
       alreadyMembers: [] as string[],
     };
 
-    // Get user IDs for the emails
+    // Get user IDs for the usernames
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
-      .select("id, email")
-      .in("email", emails);
+      .select("id, username")
+      .in(
+        "username",
+        usernames.map((u) => u.toLowerCase())
+      );
 
     if (profilesError) throw profilesError;
 
-    const foundEmails = new Set(profiles?.map((p) => p.email) || []);
+    const foundUsernames = new Set(profiles?.map((p) => p.username) || []);
     const userIds = profiles?.map((p) => p.id) || [];
 
-    // Check which emails were not found
-    emails.forEach((email) => {
-      if (!foundEmails.has(email)) {
-        result.notFound.push(email);
+    // Check which usernames were not found
+    usernames.forEach((username) => {
+      if (!foundUsernames.has(username.toLowerCase())) {
+        result.notFound.push(username);
       }
     });
 
@@ -512,11 +515,11 @@ export const GroupService = {
 
       // Filter out existing members and prepare new memberships
       const newUserIds = userIds.filter((id) => !existingUserIds.has(id));
-      const existingEmails =
+      const existingUsernames =
         profiles
           ?.filter((p) => existingUserIds.has(p.id))
-          .map((p) => p.email) || [];
-      result.alreadyMembers.push(...existingEmails);
+          .map((p) => p.username) || [];
+      result.alreadyMembers.push(...existingUsernames);
 
       // Add new members
       if (newUserIds.length > 0) {
@@ -533,11 +536,11 @@ export const GroupService = {
 
         if (insertError) throw insertError;
 
-        const addedEmails =
+        const addedUsernames =
           profiles
             ?.filter((p) => newUserIds.includes(p.id))
-            .map((p) => p.email) || [];
-        result.added.push(...addedEmails);
+            .map((p) => p.username) || [];
+        result.added.push(...addedUsernames);
 
         // Update member_count in groups table
         if (newUserIds.length > 0) {

@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 
 export const revalidate = 60;
 
-
 export default function GroupsPage() {
   const { user, loading: authLoading } = useAuth();
+
   const [groups, setGroups] = useState<Group[]>([]);
   const [memberships, setMemberships] = useState<
     Record<string, "member" | "pending" | "none">
@@ -28,6 +28,7 @@ export default function GroupsPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+
       const [allGroups, userMemberships] = await Promise.all([
         GroupService.fetchGroups(),
         user?.id
@@ -91,17 +92,18 @@ export default function GroupsPage() {
   const handleCreateGroup = async (
     name: string,
     description: string,
-    memberEmails?: string[]
+    memberUsernames?: string[]
   ) => {
     if (!user) return;
+
     try {
       const group = await GroupService.createGroup(name, description, user.id);
 
       // Add members if provided
-      if (memberEmails && memberEmails.length > 0) {
+      if (memberUsernames && memberUsernames.length > 0) {
         const result = await GroupService.addMembersToGroup(
           group.id,
-          memberEmails
+          memberUsernames
         );
 
         if (result.added.length > 0) {
@@ -109,9 +111,9 @@ export default function GroupsPage() {
         }
         if (result.notFound.length > 0) {
           toast.warning(
-            `${
-              result.notFound.length
-            } email(s) not found: ${result.notFound.join(", ")}`
+            `${result.notFound.length} username(s) not found: ${result.notFound
+              .map((u) => "@" + u)
+              .join(", ")}`
           );
         }
         if (result.alreadyMembers.length > 0) {

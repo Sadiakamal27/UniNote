@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 export default function SignUpPage() {
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -50,6 +51,24 @@ export default function SignUpPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate username
+    if (!username.trim()) {
+      toast.error("Username is required");
+      return;
+    }
+
+    if (username.length < 3 || username.length > 20) {
+      toast.error("Username must be between 3 and 20 characters");
+      return;
+    }
+
+    if (!/^[a-z0-9_]+$/.test(username.toLowerCase())) {
+      toast.error(
+        "Username can only contain letters, numbers, and underscores"
+      );
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast.error("Passwords do not match");
       return;
@@ -68,7 +87,7 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      const { error } = await signUp(email, password, fullName);
+      const { error } = await signUp(email, password, fullName, username);
 
       if (error) {
         toast.error(error.message || "Failed to create account");
@@ -110,6 +129,23 @@ export default function SignUpPage() {
                 disabled={loading}
                 className="h-11"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="johndoe"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                required
+                disabled={loading}
+                className="h-11"
+              />
+              <p className="text-xs text-muted-foreground">
+                3-20 characters, lowercase letters, numbers, and underscores
+                only
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

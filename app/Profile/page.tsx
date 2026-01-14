@@ -21,7 +21,7 @@ import { FileText, FolderOpen, Heart, Edit, Plus } from "lucide-react";
 import Link from "next/link";
 
 export default function ProfilePage() {
-  const { profile, user, loading: authLoading } = useAuth();
+  const { profile, user, loading: authLoading, refreshProfile } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -332,9 +332,9 @@ export default function ProfilePage() {
       <EditProfileDialog
         open={editProfileOpen}
         onOpenChange={setEditProfileOpen}
-        onUpdate={() => {
-          // Refresh profile data
-          window.location.reload();
+        onUpdate={async () => {
+          // Refresh profile data without full page reload
+          await refreshProfile();
         }}
       />
     </div>

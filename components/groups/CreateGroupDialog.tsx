@@ -21,7 +21,11 @@ export const revalidate = 60;
 interface CreateGroupDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (name: string, description: string, memberEmails?: string[]) => Promise<void>;
+  onCreate: (
+    name: string,
+    description: string,
+    memberUsernames?: string[]
+  ) => Promise<void>;
 }
 
 export function CreateGroupDialog({
@@ -31,25 +35,31 @@ export function CreateGroupDialog({
 }: CreateGroupDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [memberEmails, setMemberEmails] = useState<string[]>([]);
-  const [emailInput, setEmailInput] = useState("");
+  const [memberUsernames, setMemberUsernames] = useState<string[]>([]);
+  const [usernameInput, setUsernameInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleAddEmail = () => {
-    const email = emailInput.trim().toLowerCase();
-    if (email && !memberEmails.includes(email)) {
-      // Basic email validation
-      if (email.includes("@") && email.includes(".")) {
-        setMemberEmails([...memberEmails, email]);
-        setEmailInput("");
+  const handleAddUsername = () => {
+    const username = usernameInput.trim().toLowerCase();
+    if (username && !memberUsernames.includes(username)) {
+      // Basic username validation
+      if (
+        /^[a-z0-9_]+$/.test(username) &&
+        username.length >= 3 &&
+        username.length <= 20
+      ) {
+        setMemberUsernames([...memberUsernames, username]);
+        setUsernameInput("");
       } else {
-        toast.error("Please enter a valid email address");
+        toast.error(
+          "Please enter a valid username (3-20 characters, letters, numbers, underscores)"
+        );
       }
     }
   };
 
-  const handleRemoveEmail = (email: string) => {
-    setMemberEmails(memberEmails.filter((e) => e !== email));
+  const handleRemoveUsername = (username: string) => {
+    setMemberUsernames(memberUsernames.filter((u) => u !== username));
   };
 
   const handleSubmit = async () => {
@@ -57,11 +67,11 @@ export function CreateGroupDialog({
 
     setLoading(true);
     try {
-      await onCreate(name.trim(), description.trim(), memberEmails);
+      await onCreate(name.trim(), description.trim(), memberUsernames);
       setName("");
       setDescription("");
-      setMemberEmails([]);
-      setEmailInput("");
+      setMemberUsernames([]);
+      setUsernameInput("");
       onOpenChange(false);
     } catch (error) {
       console.error("Error in CreateGroupDialog:", error);
@@ -102,18 +112,18 @@ export function CreateGroupDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="members">Add Members by Email (Optional)</Label>
+            <Label htmlFor="members">Add Members by Username (Optional)</Label>
             <div className="flex gap-2">
               <Input
                 id="members"
-                type="email"
-                placeholder="Enter email address..."
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
+                type="text"
+                placeholder="Enter username..."
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value.toLowerCase())}
                 onKeyPress={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    handleAddEmail();
+                    handleAddUsername();
                   }
                 }}
                 disabled={loading}
@@ -121,20 +131,20 @@ export function CreateGroupDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleAddEmail}
-                disabled={loading || !emailInput.trim()}
+                onClick={handleAddUsername}
+                disabled={loading || !usernameInput.trim()}
               >
                 <UserPlus className="h-4 w-4" />
               </Button>
             </div>
-            {memberEmails.length > 0 && (
+            {memberUsernames.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {memberEmails.map((email) => (
-                  <Badge key={email} variant="secondary" className="gap-1">
-                    {email}
+                {memberUsernames.map((username) => (
+                  <Badge key={username} variant="secondary" className="gap-1">
+                    @{username}
                     <button
                       type="button"
-                      onClick={() => handleRemoveEmail(email)}
+                      onClick={() => handleRemoveUsername(username)}
                       className="ml-1 hover:text-destructive"
                       disabled={loading}
                     >
@@ -145,7 +155,8 @@ export function CreateGroupDialog({
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Members will be automatically added and approved when the group is created
+              Members will be automatically added and approved when the group is
+              created
             </p>
           </div>
         </div>

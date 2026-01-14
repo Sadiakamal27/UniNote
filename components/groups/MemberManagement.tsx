@@ -18,8 +18,8 @@ interface MemberManagementProps {
 export function MemberManagement({ groupId }: MemberManagementProps) {
   const [pendingMembers, setPendingMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [emailInput, setEmailInput] = useState("");
-  const [emailsToAdd, setEmailsToAdd] = useState<string[]>([]);
+  const [usernameInput, setUsernameInput] = useState("");
+  const [usernamesToAdd, setUsernamesToAdd] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
 
   const loadPending = useCallback(async () => {
@@ -54,38 +54,47 @@ export function MemberManagement({ groupId }: MemberManagementProps) {
     }
   };
 
-  const handleAddEmail = () => {
-    const email = emailInput.trim().toLowerCase();
-    if (email && !emailsToAdd.includes(email)) {
-      // Basic email validation
-      if (email.includes("@") && email.includes(".")) {
-        setEmailsToAdd([...emailsToAdd, email]);
-        setEmailInput("");
+  const handleAddUsername = () => {
+    const username = usernameInput.trim().toLowerCase();
+    if (username && !usernamesToAdd.includes(username)) {
+      // Basic username validation
+      if (
+        /^[a-z0-9_]+$/.test(username) &&
+        username.length >= 3 &&
+        username.length <= 20
+      ) {
+        setUsernamesToAdd([...usernamesToAdd, username]);
+        setUsernameInput("");
       } else {
-        toast.error("Please enter a valid email address");
+        toast.error(
+          "Please enter a valid username (3-20 characters, letters, numbers, underscores)"
+        );
       }
     }
   };
 
-  const handleRemoveEmail = (email: string) => {
-    setEmailsToAdd(emailsToAdd.filter((e) => e !== email));
+  const handleRemoveUsername = (username: string) => {
+    setUsernamesToAdd(usernamesToAdd.filter((u) => u !== username));
   };
 
   const handleAddMembers = async () => {
-    if (emailsToAdd.length === 0) return;
+    if (usernamesToAdd.length === 0) return;
 
     try {
       setAdding(true);
-      const result = await GroupService.addMembersToGroup(groupId, emailsToAdd);
+      const result = await GroupService.addMembersToGroup(
+        groupId,
+        usernamesToAdd
+      );
 
       if (result.added.length > 0) {
         toast.success(`${result.added.length} member(s) added successfully`);
       }
       if (result.notFound.length > 0) {
         toast.warning(
-          `${result.notFound.length} email(s) not found: ${result.notFound.join(
-            ", "
-          )}`
+          `${result.notFound.length} username(s) not found: ${result.notFound
+            .map((u) => "@" + u)
+            .join(", ")}`
         );
       }
       if (result.alreadyMembers.length > 0) {
@@ -94,8 +103,8 @@ export function MemberManagement({ groupId }: MemberManagementProps) {
         );
       }
 
-      setEmailsToAdd([]);
-      setEmailInput("");
+      setUsernamesToAdd([]);
+      setUsernameInput("");
       loadPending();
     } catch (error) {
       console.error("Error adding members:", error);
@@ -125,18 +134,18 @@ export function MemberManagement({ groupId }: MemberManagementProps) {
         </div>
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="member-email">Add Members by Email</Label>
+            <Label htmlFor="member-username">Add Members by Username</Label>
             <div className="flex gap-2">
               <Input
-                id="member-email"
-                type="email"
-                placeholder="Enter email address..."
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
+                id="member-username"
+                type="text"
+                placeholder="Enter username..."
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value.toLowerCase())}
                 onKeyPress={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    handleAddEmail();
+                    handleAddUsername();
                   }
                 }}
                 disabled={adding}
@@ -144,22 +153,22 @@ export function MemberManagement({ groupId }: MemberManagementProps) {
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleAddEmail}
-                disabled={adding || !emailInput.trim()}
+                onClick={handleAddUsername}
+                disabled={adding || !usernameInput.trim()}
               >
                 <UserPlus className="h-4 w-4" />
               </Button>
             </div>
           </div>
-          {emailsToAdd.length > 0 && (
+          {usernamesToAdd.length > 0 && (
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
-                {emailsToAdd.map((email) => (
-                  <Badge key={email} variant="secondary" className="gap-1">
-                    {email}
+                {usernamesToAdd.map((username) => (
+                  <Badge key={username} variant="secondary" className="gap-1">
+                    @{username}
                     <button
                       type="button"
-                      onClick={() => handleRemoveEmail(email)}
+                      onClick={() => handleRemoveUsername(username)}
                       className="ml-1 hover:text-destructive"
                       disabled={adding}
                     >
@@ -181,8 +190,8 @@ export function MemberManagement({ groupId }: MemberManagementProps) {
                 ) : (
                   <>
                     <UserPlus className="h-4 w-4 mr-2" />
-                    Add {emailsToAdd.length} Member
-                    {emailsToAdd.length !== 1 ? "s" : ""}
+                    Add {usernamesToAdd.length} Member
+                    {usernamesToAdd.length !== 1 ? "s" : ""}
                   </>
                 )}
               </Button>

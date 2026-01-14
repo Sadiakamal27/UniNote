@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { supabase } from "@/lib/supabase";
 import {
@@ -28,10 +28,18 @@ export function EditProfileDialog({
   onOpenChange,
   onUpdate,
 }: EditProfileDialogProps) {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [loading, setLoading] = useState(false);
+
+  // Update state when dialog opens or profile changes
+  useEffect(() => {
+    if (open && profile) {
+      setFullName(profile.full_name || "");
+      setBio(profile.bio || "");
+    }
+  }, [open, profile]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -49,6 +57,10 @@ export function EditProfileDialog({
       if (error) throw error;
 
       toast.success("Profile updated");
+
+      // Refresh profile data from auth context
+      await refreshProfile();
+
       onOpenChange(false);
       onUpdate();
     } catch (error) {

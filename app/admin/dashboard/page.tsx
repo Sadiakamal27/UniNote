@@ -28,6 +28,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     async function fetchStats() {
       try {
+        console.log("Fetching admin dashboard stats...");
         setLoading(true);
         // Fetch total users
         const { count: usersCount } = await supabase
@@ -61,6 +62,7 @@ export default function AdminDashboard() {
       } catch (error) {
         console.error("Error fetching stats:", error);
       } finally {
+        console.log("Admin dashboard stats fetch completed.");
         setLoading(false);
       }
     }

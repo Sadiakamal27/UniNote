@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { supabase, Post } from "@/lib/supabase";
 import { PostCard } from "@/components/feed/PostCard";
 import { PostModal } from "@/components/feed/PostModal";
@@ -9,35 +9,28 @@ import { Button } from "@/components/ui/button";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
-export const revalidate = 60;
-
 export default function FeedPage() {
   const { user, loading: authLoading } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const hasLoadedRef = useRef(false);
-  const lastUserIdRef = useRef<string | undefined>();
 
+  // Fetch posts
   const fetchPosts = async () => {
     try {
+      console.log("Fetching posts...");
       setLoading(true);
+
       const { data, error } = await supabase
         .from("posts")
-        .select(
-          `
-          *,
-          author:profiles!posts_author_id_fkey(*)
-        `
-        )
+        .select(`*, author:profiles!posts_author_id_fkey(*)`)
         .eq("post_type", "public")
         .eq("approval_status", "approved")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // Fetch like and comment counts for each post
       const postsWithStats = await Promise.all(
         (data || []).map(async (post) => {
           try {
@@ -70,8 +63,7 @@ export default function FeedPage() {
               comment_count: commentCount || 0,
               user_has_liked: !!userLikeResult?.data,
             };
-          } catch (err) {
-            console.error(`Error fetching stats for post ${post.id}:`, err);
+          } catch {
             return {
               ...post,
               like_count: 0,
@@ -86,27 +78,120 @@ export default function FeedPage() {
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
+      console.log("Fetch posts completed.");
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Only fetch if auth is loaded and either:
-    // 1. We haven't loaded data yet, or
-    // 2. The user has changed
     if (!authLoading) {
-      const userChanged = lastUserIdRef.current !== user?.id;
-      if (!hasLoadedRef.current || userChanged) {
-        hasLoadedRef.current = true;
-        lastUserIdRef.current = user?.id;
-        fetchPosts();
-      }
+      // Call async function inside effect
+      fetchPosts();
     }
+    // No return needed here because there's no cleanup
   }, [authLoading, user?.id]);
 
+  // Real-time subscriptions
+  useEffect(() => {
+    if (authLoading) return;
+
+    const channel = supabase
+      .channel("feed_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "posts" },
+        (payload) => {
+          const newPost = payload.new as Partial<Post> | null;
+          const oldPost = payload.old as Partial<Post> | null;
+
+          setPosts((currentPosts) => {
+            if (payload.eventType === "INSERT" && newPost) {
+              return [newPost as Post, ...currentPosts];
+            }
+            if (payload.eventType === "UPDATE" && newPost) {
+              return currentPosts.map((p) =>
+                p.id === newPost.id ? { ...p, ...newPost } : p
+              );
+            }
+            if (payload.eventType === "DELETE" && oldPost) {
+              return currentPosts.filter((p) => p.id !== oldPost.id);
+            }
+            return currentPosts;
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "post_likes" },
+        (payload) => {
+          const newLike = payload.new as {
+            post_id?: string;
+            user_id?: string;
+          } | null;
+          const oldLike = payload.old as {
+            post_id?: string;
+            user_id?: string;
+          } | null;
+
+          setPosts((currentPosts) =>
+            currentPosts.map((post) => {
+              if (post.id !== newLike?.post_id && post.id !== oldLike?.post_id)
+                return post;
+
+              const increment = payload.eventType === "INSERT" ? 1 : -1;
+              const userLiked =
+                payload.eventType === "INSERT"
+                  ? newLike?.user_id === user?.id
+                  : oldLike?.user_id === user?.id
+                  ? false
+                  : post.user_has_liked;
+
+              return {
+                ...post,
+                like_count: Math.max(0, (post.like_count || 0) + increment),
+                user_has_liked: userLiked,
+              };
+            })
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "comments" },
+        (payload) => {
+          const newComment = payload.new as { post_id?: string } | null;
+          const oldComment = payload.old as { post_id?: string } | null;
+
+          setPosts((currentPosts) =>
+            currentPosts.map((post) => {
+              if (
+                post.id !== newComment?.post_id &&
+                post.id !== oldComment?.post_id
+              )
+                return post;
+
+              const increment = payload.eventType === "INSERT" ? 1 : -1;
+              return {
+                ...post,
+                comment_count: Math.max(
+                  0,
+                  (post.comment_count || 0) + increment
+                ),
+              };
+            })
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authLoading, user?.id]);
+
+  // Handle like/unlike
   const handleLike = async (postId: string) => {
     if (!user) return;
-
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
 
@@ -122,8 +207,6 @@ export default function FeedPage() {
           .from("post_likes")
           .insert({ post_id: postId, user_id: user.id });
       }
-
-      // Refresh posts to update counts
       await fetchPosts();
     } catch (error) {
       console.error("Error toggling like:", error);
@@ -143,7 +226,6 @@ export default function FeedPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Feed</h1>
         <p className="text-muted-foreground">
@@ -151,7 +233,6 @@ export default function FeedPage() {
         </p>
       </div>
 
-      {/* Search and Filters */}
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -167,7 +248,6 @@ export default function FeedPage() {
         </Button>
       </div>
 
-      {/* Posts Grid */}
       {displayLoading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -193,7 +273,6 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* Post Modal */}
       <PostModal
         post={selectedPost}
         open={!!selectedPost}

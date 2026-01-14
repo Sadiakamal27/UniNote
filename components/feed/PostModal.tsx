@@ -31,7 +31,6 @@ import { toast } from "sonner";
 
 export const revalidate = 60;
 
-
 interface PostModalProps {
   post: (Post & { author?: Profile }) | null;
   open: boolean;
@@ -55,6 +54,39 @@ export function PostModal({ post, open, onOpenChange }: PostModalProps) {
       setIsLiked(post.user_has_liked || false);
       fetchComments();
       fetchLikeStatus();
+
+      // Set up real-time subscription for this specific post
+      const channel = supabase
+        .channel(`post_details_${post.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "post_likes",
+            filter: `post_id=eq.${post.id}`,
+          },
+          () => {
+            fetchLikeStatus();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "comments",
+            filter: `post_id=eq.${post.id}`,
+          },
+          () => {
+            fetchComments();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [post, open]);
 

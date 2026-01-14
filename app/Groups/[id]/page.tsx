@@ -58,6 +58,7 @@ export default function GroupDetailPage() {
 
     try {
       setLoading(true);
+
       const { group, isMember, isAdmin, membershipStatus, posts } =
         await GroupService.getGroupDetails(groupId, user?.id);
 
@@ -65,6 +66,7 @@ export default function GroupDetailPage() {
       setIsMember(isMember);
       setIsAdmin(isAdmin);
       setMembershipStatus(membershipStatus);
+
       // Posts are already filtered in getGroupDetails - approved for members, all for admins
       setPosts(posts);
 
@@ -124,7 +126,6 @@ export default function GroupDetailPage() {
 
   const handleLike = async (postId: string) => {
     if (!user) return;
-
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
 
@@ -272,6 +273,7 @@ export default function GroupDetailPage() {
             {/* Main Content: Posts */}
             <div className="lg:col-span-2 space-y-6">
               <h2 className="text-xl font-bold">Recent Notes</h2>
+
               {posts.length > 0 ? (
                 <div className="space-y-4">
                   {posts.map((post) => (
@@ -303,7 +305,6 @@ export default function GroupDetailPage() {
                   {group.description ||
                     "No description provided for this group."}
                 </p>
-
                 <div className="pt-4 border-t space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Privacy</span>
@@ -329,6 +330,7 @@ export default function GroupDetailPage() {
                     Review and approve notes submitted to this group
                   </p>
                 </div>
+
                 {pendingPosts.length > 0 ? (
                   <div className="grid gap-6 md:grid-cols-2">
                     {pendingPosts.map((post) => (
@@ -348,6 +350,7 @@ export default function GroupDetailPage() {
                 )}
               </div>
             </TabsContent>
+
             <TabsContent value="admin">
               <div className="max-w-4xl space-y-8">
                 <MemberManagement groupId={groupId} />

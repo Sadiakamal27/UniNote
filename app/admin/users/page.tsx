@@ -26,7 +26,6 @@ import {
   Mail,
   Settings,
   UserMinus,
-  ShieldOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -373,20 +372,7 @@ export default function UsersPage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    {membership.is_admin ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          handleToggleAdmin(membership.group_id, false)
-                        }
-                        disabled={actionLoading}
-                        className="gap-2"
-                      >
-                        <ShieldOff className="h-4 w-4 text-orange-500" />
-                        Demote
-                      </Button>
-                    ) : (
+                    {!membership.is_admin && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -397,7 +383,7 @@ export default function UsersPage() {
                         className="gap-2"
                       >
                         <ShieldCheck className="h-4 w-4 text-blue-500" />
-                        Promote
+                        Promote to Admin
                       </Button>
                     )}
                     <Button
@@ -408,7 +394,7 @@ export default function UsersPage() {
                       className="gap-2"
                     >
                       <UserMinus className="h-4 w-4" />
-                      Remove
+                      Remove from Group
                     </Button>
                   </div>
                 </div>

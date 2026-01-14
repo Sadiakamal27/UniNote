@@ -277,6 +277,10 @@ export default function FeedPage() {
         post={selectedPost}
         open={!!selectedPost}
         onOpenChange={(open) => !open && setSelectedPost(null)}
+        onPostDeleted={() => {
+          setSelectedPost(null);
+          fetchPosts(); // Refresh the feed
+        }}
       />
     </div>
   );

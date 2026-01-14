@@ -23,11 +23,22 @@ import {
   FileText,
   Download,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const revalidate = 60;
 
@@ -35,10 +46,16 @@ interface PostModalProps {
   post: (Post & { author?: Profile }) | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onPostDeleted?: () => void;
 }
 
-export function PostModal({ post, open, onOpenChange }: PostModalProps) {
-  const { user } = useAuth();
+export function PostModal({
+  post,
+  open,
+  onOpenChange,
+  onPostDeleted,
+}: PostModalProps) {
+  const { user, profile } = useAuth();
   const [comments, setComments] = useState<(Comment & { author?: Profile })[]>(
     []
   );
@@ -46,6 +63,10 @@ export function PostModal({ post, open, onOpenChange }: PostModalProps) {
   const [loading, setLoading] = useState(false);
   const [isLiked, setIsLiked] = useState(post?.user_has_liked || false);
   const [likeCount, setLikeCount] = useState(post?.like_count || 0);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const isUniversalAdmin = profile?.user_role === "universal_admin";
 
   useEffect(() => {
     if (post && open) {
@@ -191,6 +212,32 @@ export function PostModal({ post, open, onOpenChange }: PostModalProps) {
     }
   };
 
+  const handleDeletePost = async () => {
+    if (!post || !isUniversalAdmin) return;
+
+    setDeleting(true);
+    try {
+      // Delete the post (cascading deletes should handle comments, likes, etc.)
+      const { error } = await supabase.from("posts").delete().eq("id", post.id);
+
+      if (error) throw error;
+
+      toast.success("Post deleted successfully");
+      setDeleteDialogOpen(false);
+      onOpenChange(false);
+
+      // Notify parent component to refresh
+      if (onPostDeleted) {
+        onPostDeleted();
+      }
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      toast.error("Failed to delete post");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const getInitials = (name: string | null) => {
     if (!name) return "U";
     return name
@@ -204,220 +251,258 @@ export function PostModal({ post, open, onOpenChange }: PostModalProps) {
   if (!post) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-4">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={post.author?.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                {getInitials(post.author?.full_name || null)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-semibold">
-                {post.author?.full_name || post.author?.email}
-              </p>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
-                <span>
-                  {formatDistanceToNow(new Date(post.created_at), {
-                    addSuffix: true,
-                  })}
-                </span>
-              </div>
-            </div>
-          </div>
-          <DialogTitle className="text-2xl">{post.title}</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Post Content */}
-          <div className="prose dark:prose-invert max-w-none">
-            <p className="whitespace-pre-wrap">{post.content}</p>
-          </div>
-
-          {/* Tags */}
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {post.tags.map((tag, index) => (
-                <Badge key={index} variant="secondary">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {/* Attachments */}
-          {post.attachments && (
-            <div className="space-y-2">
-              <h4 className="font-semibold text-sm">Attachments</h4>
-              <div className="space-y-2">
-                {Array.isArray(post.attachments) ? (
-                  post.attachments.map((attachment: any, index: number) => {
-                    const url =
-                      typeof attachment === "string"
-                        ? attachment
-                        : attachment.url;
-                    const name =
-                      typeof attachment === "string"
-                        ? `Attachment ${index + 1}`
-                        : attachment.name || `Attachment ${index + 1}`;
-                    const type =
-                      typeof attachment === "string"
-                        ? "unknown"
-                        : attachment.type || "unknown";
-
-                    const isImage =
-                      type.startsWith("image/") ||
-                      ["jpg", "jpeg", "png", "gif", "webp"].some((ext) =>
-                        name.toLowerCase().endsWith(`.${ext}`)
-                      );
-                    const isPdf =
-                      type === "application/pdf" ||
-                      name.toLowerCase().endsWith(".pdf");
-
-                    return (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border"
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          {isImage ? (
-                            <Image className="h-5 w-5 text-blue-500 shrink-0" />
-                          ) : isPdf ? (
-                            <File className="h-5 w-5 text-red-500 shrink-0" />
-                          ) : (
-                            <FileText className="h-5 w-5 text-gray-500 shrink-0" />
-                          )}
-                          <span className="text-sm font-medium truncate">
-                            {name}
-                          </span>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(url, "_blank")}
-                            className="h-8"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const link = document.createElement("a");
-                              link.href = url;
-                              link.download = name;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            }}
-                            className="h-8"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No attachments available
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={post.author?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                    {getInitials(post.author?.full_name || null)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold">
+                    {post.author?.full_name || post.author?.email}
                   </p>
-                )}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    <span>
+                      {formatDistanceToNow(new Date(post.created_at), {
+                        addSuffix: true,
+                      })}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Like and Comment Counts */}
-          <div className="flex items-center gap-4 py-2">
-            <Button
-              variant={isLiked ? "default" : "outline"}
-              size="sm"
-              className="gap-2"
-              onClick={handleLike}
-              disabled={!user}
-            >
-              <Heart className={`h-4 w-4 ${isLiked ? "fill-current" : ""}`} />
-              <span>
-                {likeCount} {likeCount === 1 ? "Like" : "Likes"}
-              </span>
-            </Button>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <MessageCircle className="h-4 w-4" />
-              <span>
-                {comments.length}{" "}
-                {comments.length === 1 ? "Comment" : "Comments"}
-              </span>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Comments Section */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Comments</h3>
-
-            {/* Add Comment */}
-            {user && (
-              <div className="flex gap-3">
-                <Textarea
-                  placeholder="Write a comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  rows={3}
-                  disabled={loading}
-                />
+              {isUniversalAdmin && (
                 <Button
-                  onClick={handleAddComment}
-                  disabled={loading || !newComment.trim()}
-                  size="icon"
-                  className="shrink-0"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  className="gap-2"
                 >
-                  <Send className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
+                  Delete Post
                 </Button>
+              )}
+            </div>
+            <DialogTitle className="text-2xl">{post.title}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Post Content */}
+            <div className="prose dark:prose-invert max-w-none">
+              <p className="whitespace-pre-wrap">{post.content}</p>
+            </div>
+
+            {/* Tags */}
+            {post.tags && post.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {post.tags.map((tag, index) => (
+                  <Badge key={index} variant="secondary">
+                    {tag}
+                  </Badge>
+                ))}
               </div>
             )}
 
-            {/* Comments List */}
+            {/* Attachments */}
+            {post.attachments && (
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm">Attachments</h4>
+                <div className="space-y-2">
+                  {Array.isArray(post.attachments) ? (
+                    post.attachments.map((attachment: any, index: number) => {
+                      const url =
+                        typeof attachment === "string"
+                          ? attachment
+                          : attachment.url;
+                      const name =
+                        typeof attachment === "string"
+                          ? `Attachment ${index + 1}`
+                          : attachment.name || `Attachment ${index + 1}`;
+                      const type =
+                        typeof attachment === "string"
+                          ? "unknown"
+                          : attachment.type || "unknown";
+
+                      const isImage =
+                        type.startsWith("image/") ||
+                        ["jpg", "jpeg", "png", "gif", "webp"].some((ext) =>
+                          name.toLowerCase().endsWith(`.${ext}`)
+                        );
+                      const isPdf =
+                        type === "application/pdf" ||
+                        name.toLowerCase().endsWith(".pdf");
+
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {isImage ? (
+                              <Image className="h-5 w-5 text-blue-500 shrink-0" />
+                            ) : isPdf ? (
+                              <File className="h-5 w-5 text-red-500 shrink-0" />
+                            ) : (
+                              <FileText className="h-5 w-5 text-gray-500 shrink-0" />
+                            )}
+                            <span className="text-sm font-medium truncate">
+                              {name}
+                            </span>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(url, "_blank")}
+                              className="h-8"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const link = document.createElement("a");
+                                link.href = url;
+                                link.download = name;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                              className="h-8"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No attachments available
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Like and Comment Counts */}
+            <div className="flex items-center gap-4 py-2">
+              <Button
+                variant={isLiked ? "default" : "outline"}
+                size="sm"
+                className="gap-2"
+                onClick={handleLike}
+                disabled={!user}
+              >
+                <Heart className={`h-4 w-4 ${isLiked ? "fill-current" : ""}`} />
+                <span>
+                  {likeCount} {likeCount === 1 ? "Like" : "Likes"}
+                </span>
+              </Button>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MessageCircle className="h-4 w-4" />
+                <span>
+                  {comments.length}{" "}
+                  {comments.length === 1 ? "Comment" : "Comments"}
+                </span>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Comments Section */}
             <div className="space-y-4">
-              {comments.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  No comments yet. Be the first to comment!
-                </p>
-              ) : (
-                comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={comment.author?.avatar_url || undefined}
-                      />
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {getInitials(comment.author?.full_name || null)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm">
-                          {comment.author?.full_name || comment.author?.email}
-                        </p>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(comment.created_at), {
-                            addSuffix: true,
-                          })}
-                        </span>
-                      </div>
-                      <p className="text-sm">{comment.content}</p>
-                    </div>
-                  </div>
-                ))
+              <h3 className="font-semibold text-lg">Comments</h3>
+
+              {/* Add Comment */}
+              {user && (
+                <div className="flex gap-3">
+                  <Textarea
+                    placeholder="Write a comment..."
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={3}
+                    disabled={loading}
+                  />
+                  <Button
+                    onClick={handleAddComment}
+                    disabled={loading || !newComment.trim()}
+                    size="icon"
+                    className="shrink-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
+
+              {/* Comments List */}
+              <div className="space-y-4">
+                {comments.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No comments yet. Be the first to comment!
+                  </p>
+                ) : (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="flex gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={comment.author?.avatar_url || undefined}
+                        />
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          {getInitials(comment.author?.full_name || null)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">
+                            {comment.author?.full_name || comment.author?.email}
+                          </p>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(comment.created_at), {
+                              addSuffix: true,
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-sm">{comment.content}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this post? This action cannot be
+              undone. All comments and likes will also be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePost}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

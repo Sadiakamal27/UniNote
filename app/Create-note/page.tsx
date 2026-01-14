@@ -24,7 +24,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, X, Plus, Loader2, Upload, File, Image, FileText } from "lucide-react";
+import {
+  Send,
+  X,
+  Plus,
+  Loader2,
+  Upload,
+  File,
+  Image,
+  FileText,
+} from "lucide-react";
 
 interface Folder {
   id: string;
@@ -150,10 +159,22 @@ export default function CreateNotePage() {
       "image/gif",
       "image/webp",
     ];
-    const validExtensions = [".pdf", ".docx", ".doc", ".txt", ".jpg", ".jpeg", ".png", ".gif", ".webp"];
-    
+    const validExtensions = [
+      ".pdf",
+      ".docx",
+      ".doc",
+      ".txt",
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".webp",
+    ];
+
     const fileExtension = "." + file.name.split(".").pop()?.toLowerCase();
-    return validTypes.includes(file.type) || validExtensions.includes(fileExtension);
+    return (
+      validTypes.includes(file.type) || validExtensions.includes(fileExtension)
+    );
   };
 
   // Handle file selection
@@ -165,13 +186,15 @@ export default function CreateNotePage() {
     }
 
     const newFiles: UploadedFile[] = [];
-    
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      
+
       // Validate file type
       if (!isValidFileType(file)) {
-        toast.error(`${file.name} is not a supported file type. Please upload PDF, DOCX, TXT, or image files.`);
+        toast.error(
+          `${file.name} is not a supported file type. Please upload PDF, DOCX, TXT, or image files.`
+        );
         continue;
       }
 
@@ -190,7 +213,9 @@ export default function CreateNotePage() {
   };
 
   // Upload file to Supabase Storage
-  const uploadFileToStorage = async (uploadedFile: UploadedFile): Promise<{
+  const uploadFileToStorage = async (
+    uploadedFile: UploadedFile
+  ): Promise<{
     url: string;
     name: string;
     type: string;
@@ -205,7 +230,12 @@ export default function CreateNotePage() {
       const fileName = `${user.id}/${timestamp}-${randomStr}.${fileExt}`;
       const filePath = `post-attachments/${fileName}`;
 
-      console.log("Uploading file:", uploadedFile.file.name, "to path:", filePath);
+      console.log(
+        "Uploading file:",
+        uploadedFile.file.name,
+        "to path:",
+        filePath
+      );
 
       // Check if bucket exists (this will fail if bucket doesn't exist)
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -217,12 +247,21 @@ export default function CreateNotePage() {
 
       if (uploadError) {
         console.error("Upload error details:", uploadError);
-        
+
         // Provide more helpful error messages
-        if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("does not exist")) {
-          throw new Error("Storage bucket 'attachments' not found. Please create it in Supabase Storage settings.");
-        } else if (uploadError.message?.includes("new row violates row-level security")) {
-          throw new Error("Permission denied. Please check storage bucket policies.");
+        if (
+          uploadError.message?.includes("Bucket not found") ||
+          uploadError.message?.includes("does not exist")
+        ) {
+          throw new Error(
+            "Storage bucket 'attachments' not found. Please create it in Supabase Storage settings."
+          );
+        } else if (
+          uploadError.message?.includes("new row violates row-level security")
+        ) {
+          throw new Error(
+            "Permission denied. Please check storage bucket policies."
+          );
         } else {
           throw new Error(uploadError.message || "Failed to upload file");
         }
@@ -306,7 +345,7 @@ export default function CreateNotePage() {
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -332,10 +371,10 @@ export default function CreateNotePage() {
         type: string;
         size: number;
       }> = [];
-      
+
       if (uploadedFiles.length > 0) {
         toast.info(`Uploading ${uploadedFiles.length} file(s)...`);
-        
+
         // Update files with uploading state
         setUploadedFiles((prev) =>
           prev.map((f) => ({ ...f, uploading: true }))
@@ -353,16 +392,20 @@ export default function CreateNotePage() {
           } catch (error: any) {
             console.error("Error uploading file:", error);
             const errorMessage = error?.message || "Unknown error";
-            toast.error(`Failed to upload ${uploadedFile.file.name}: ${errorMessage}`);
+            toast.error(
+              `Failed to upload ${uploadedFile.file.name}: ${errorMessage}`
+            );
             return null;
           }
         });
 
         const results = await Promise.all(uploadPromises);
-        const successfulUploads = results.filter((result): result is NonNullable<typeof result> => result !== null);
-        
+        const successfulUploads = results.filter(
+          (result): result is NonNullable<typeof result> => result !== null
+        );
+
         attachmentData.push(...successfulUploads);
-        
+
         console.log("All files uploaded. Total:", attachmentData.length);
         console.log("Attachment data:", attachmentData);
 
@@ -379,7 +422,7 @@ export default function CreateNotePage() {
         content: content.trim(),
         author_id: user.id,
         post_type: postType,
-        approval_status: "pending", // Both public and group posts require approval
+        approval_status: "pending", // All posts require approval
         folder_id: folderId || null,
         group_id: postType === "group" ? groupId : null,
         tags: tags.length > 0 ? tags : null,
@@ -400,23 +443,35 @@ export default function CreateNotePage() {
       }
 
       console.log("Post created successfully:", insertedPost);
-      
+
       // Verify attachments were saved
       if (attachmentData.length > 0 && insertedPost) {
         console.log("Post attachments:", insertedPost.attachments);
-        if (!insertedPost.attachments || (Array.isArray(insertedPost.attachments) && insertedPost.attachments.length === 0)) {
-          console.warn("Warning: Attachments were uploaded but not saved to post");
-          toast.warning("Note created but attachments may not have been saved. Please check.");
+        if (
+          !insertedPost.attachments ||
+          (Array.isArray(insertedPost.attachments) &&
+            insertedPost.attachments.length === 0)
+        ) {
+          console.warn(
+            "Warning: Attachments were uploaded but not saved to post"
+          );
+          toast.warning(
+            "Note created but attachments may not have been saved. Please check."
+          );
         } else {
-          console.log("Attachments verified in post:", insertedPost.attachments);
+          console.log(
+            "Attachments verified in post:",
+            insertedPost.attachments
+          );
         }
       }
 
-      const successMessage = attachmentData.length > 0
-        ? `Note with ${attachmentData.length} attachment(s) submitted for approval!`
-        : postType === "public"
-        ? "Note submitted for admin approval!"
-        : "Note submitted for group admin approval!";
+      const successMessage =
+        attachmentData.length > 0
+          ? `Note with ${attachmentData.length} attachment(s) submitted for approval!`
+          : postType === "public"
+          ? "Note submitted for admin approval!"
+          : "Note submitted for group admin approval!";
 
       toast.success(successMessage);
 

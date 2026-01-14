@@ -48,7 +48,7 @@ interface UploadedFile {
 }
 
 export default function CreateNotePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialGroupId = searchParams.get("group");
@@ -364,6 +364,16 @@ export default function CreateNotePage() {
     setLoading(true);
 
     try {
+      // Check if user is universal admin
+      const isUniversalAdmin = profile?.user_role === "universal_admin";
+      console.log("Create Note Attempt:", {
+        userId: user.id,
+        userRole: profile?.user_role,
+        isUniversalAdmin,
+        postType,
+        title: title.trim(),
+      });
+
       // Upload files first
       const attachmentData: Array<{
         url: string;
@@ -422,24 +432,27 @@ export default function CreateNotePage() {
         content: content.trim(),
         author_id: user.id,
         post_type: postType,
-        approval_status: "pending", // All posts require approval
+        approval_status: isUniversalAdmin ? "approved" : "pending",
+        approved_by: isUniversalAdmin ? user.id : null,
+        approved_at: isUniversalAdmin ? new Date().toISOString() : null,
         folder_id: folderId || null,
         group_id: postType === "group" ? groupId : null,
         tags: tags.length > 0 ? tags : null,
         attachments: attachmentData.length > 0 ? attachmentData : null,
       };
 
-      console.log("Creating post with data:", postData);
+      console.log("Inserting postData:", postData);
 
-      const { data: insertedPost, error } = await supabase
+      const { data: insertedPost, error: insertError } = await supabase
         .from("posts")
         .insert(postData)
         .select()
         .single();
 
-      if (error) {
-        console.error("Error creating post:", error);
-        throw error;
+      if (insertError) {
+        console.error("Supabase Post Insertion Error:", insertError);
+        toast.error(`Database error: ${insertError.message}`);
+        throw insertError;
       }
 
       console.log("Post created successfully:", insertedPost);
@@ -466,12 +479,13 @@ export default function CreateNotePage() {
         }
       }
 
-      const successMessage =
-        attachmentData.length > 0
-          ? `Note with ${attachmentData.length} attachment(s) submitted for approval!`
-          : postType === "public"
-          ? "Note submitted for admin approval!"
-          : "Note submitted for group admin approval!";
+      const successMessage = isUniversalAdmin
+        ? "Note published successfully!"
+        : attachmentData.length > 0
+        ? `Note with ${attachmentData.length} attachment(s) submitted for approval!`
+        : postType === "public"
+        ? "Note submitted for admin approval!"
+        : "Note submitted for group admin approval!";
 
       toast.success(successMessage);
 
@@ -483,11 +497,18 @@ export default function CreateNotePage() {
       setPostType("public");
       setUploadedFiles([]);
 
-      // Redirect to profile
-      router.push("/Profile");
-    } catch (error) {
-      console.error("Error creating note:", error);
-      toast.error("Failed to create note");
+      // Redirect based on role
+      if (isUniversalAdmin) {
+        router.push("/"); // Redirect to feed for universal admins
+      } else {
+        router.push("/Profile"); // Redirect to profile for regular users
+      }
+    } catch (error: any) {
+      console.error("Error creating note catch block:", error);
+      // Already toasted in if(insertError) but just in case
+      if (!error.message?.includes("Database error")) {
+        toast.error(error.message || "Failed to create note");
+      }
     } finally {
       setLoading(false);
     }
@@ -777,6 +798,11 @@ export default function CreateNotePage() {
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Submitting...
                   </>
+                ) : profile?.user_role === "universal_admin" ? (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Publish Note
+                  </>
                 ) : (
                   <>
                     <Send className="h-4 w-4 mr-2" />
@@ -795,16 +821,18 @@ export default function CreateNotePage() {
             </div>
 
             {/* Info Message */}
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-              <p className="text-sm text-blue-600 dark:text-blue-400">
-                <strong>Note:</strong> Your note will be pending until approved
-                by{" "}
-                {postType === "public"
-                  ? "a universal admin"
-                  : "the group admin"}
-                . You can view and edit pending notes in your profile.
-              </p>
-            </div>
+            {profile?.user_role !== "universal_admin" && (
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  <strong>Note:</strong> Your note will be pending until
+                  approved by{" "}
+                  {postType === "public"
+                    ? "a universal admin"
+                    : "the group admin"}
+                  . You can view and edit pending notes in your profile.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </form>

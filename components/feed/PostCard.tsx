@@ -65,7 +65,7 @@ export function PostCard({ post, onViewPost, onLike }: PostCardProps) {
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
               <AvatarImage src={post.author?.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+              <AvatarFallback className="bg-primary/20 text-primary font-semibold border border-primary/20">
                 {getInitials(post.author?.full_name || null)}
               </AvatarFallback>
             </Avatar>
@@ -121,7 +121,7 @@ export function PostCard({ post, onViewPost, onLike }: PostCardProps) {
           <Button
             variant="ghost"
             size="sm"
-            className={`gap-2 ${isLiked ? "text-red-500" : ""}`}
+            className={`gap-2 ${isLiked ? "text-destructive" : ""}`}
             onClick={handleLike}
           >
             <Heart className={`h-4 w-4 ${isLiked ? "fill-current" : ""}`} />

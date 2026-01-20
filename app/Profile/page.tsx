@@ -147,7 +147,7 @@ export default function ProfilePage() {
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20">
                 <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold text-2xl">
+                <AvatarFallback className="bg-primary/20 text-primary font-semibold text-2xl border border-primary/20">
                   {getInitials(
                     profile?.full_name || null,
                     profile?.email || null

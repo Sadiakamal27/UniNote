@@ -268,7 +268,7 @@ export default function UsersPage() {
                   <div className="flex items-start gap-4 flex-1">
                     <Avatar className="h-12 w-12">
                       <AvatarImage src={user.avatar_url || undefined} />
-                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                      <AvatarFallback className="bg-primary/20 text-primary font-semibold border border-primary/20">
                         {getInitials(user.full_name)}
                       </AvatarFallback>
                     </Avatar>

@@ -259,7 +259,7 @@ export function PostModal({
               <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12">
                   <AvatarImage src={post.author?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                  <AvatarFallback className="bg-primary/20 text-primary font-semibold border border-primary/20">
                     {getInitials(post.author?.full_name || null)}
                   </AvatarFallback>
                 </Avatar>
@@ -345,11 +345,11 @@ export function PostModal({
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             {isImage ? (
-                              <Image className="h-5 w-5 text-blue-500 shrink-0" />
+                              <Image className="h-5 w-5 text-primary shrink-0" />
                             ) : isPdf ? (
-                              <File className="h-5 w-5 text-red-500 shrink-0" />
+                              <File className="h-5 w-5 text-destructive shrink-0" />
                             ) : (
-                              <FileText className="h-5 w-5 text-gray-500 shrink-0" />
+                              <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
                             )}
                             <span className="text-sm font-medium truncate">
                               {name}
@@ -455,7 +455,7 @@ export function PostModal({
                         <AvatarImage
                           src={comment.author?.avatar_url || undefined}
                         />
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                        <AvatarFallback className="bg-primary/20 text-primary text-xs border border-primary/20">
                           {getInitials(comment.author?.full_name || null)}
                         </AvatarFallback>
                       </Avatar>

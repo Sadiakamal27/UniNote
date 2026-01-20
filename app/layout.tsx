@@ -1,8 +1,8 @@
 import "./globals.css";
 import { ReactNode } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
-import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/contexts/auth-context";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
 import {
   SidebarInset,
@@ -12,7 +12,7 @@ import {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background">
         <ThemeProvider>
           <AuthProvider>

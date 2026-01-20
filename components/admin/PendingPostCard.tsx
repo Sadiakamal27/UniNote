@@ -152,7 +152,7 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
             </div>
             <Badge
               variant="outline"
-              className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
+              className="bg-accent/10 text-accent-foreground border-accent/20"
             >
               Pending
             </Badge>
@@ -196,7 +196,7 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
             size="sm"
             onClick={handleApprove}
             disabled={loading}
-            className="flex-1 bg-green-600 hover:bg-green-700"
+            className="flex-1 bg-primary hover:bg-primary/90"
           >
             <CheckCircle className="h-4 w-4 mr-2" />
             Approve
@@ -272,11 +272,11 @@ export function PendingPostCard({ post, onUpdate }: PendingPostCardProps) {
                       >
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           {isImage ? (
-                            <Image className="h-5 w-5 text-blue-500 shrink-0" />
-                          ) : isPdf ? (
-                            <File className="h-5 w-5 text-red-500 shrink-0" />
-                          ) : (
-                            <FileText className="h-5 w-5 text-gray-500 shrink-0" />
+                            <Image className="h-5 w-5 text-primary shrink-0" />
+                            ) : isPdf ? (
+                            <File className="h-5 w-5 text-destructive shrink-0" />
+                            ) : (
+                            <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
                           )}
                           <span className="text-sm font-medium truncate">
                             {name}

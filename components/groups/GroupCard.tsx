@@ -37,7 +37,7 @@ export function GroupCard({
             </Button>
           )}
           {membershipStatus === "pending" && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 text-xs font-medium">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/10 text-accent-foreground border border-accent/20 text-xs font-medium">
               <Clock className="h-3.5 w-3.5" />
               Pending
             </div>

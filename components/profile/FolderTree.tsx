@@ -45,7 +45,7 @@ export function FolderTree({
   const { user, loading: authLoading } = useAuth();
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");

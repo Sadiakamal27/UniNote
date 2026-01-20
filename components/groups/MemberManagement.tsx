@@ -224,7 +224,7 @@ export function MemberManagement({ groupId }: MemberManagementProps) {
                 <div className="flex items-center gap-3">
                   <Avatar>
                     <AvatarImage src={membership.user?.avatar_url} />
-                    <AvatarFallback className="bg-primary/10 text-primary">
+                    <AvatarFallback className="bg-primary/20 text-primary border border-primary/20">
                       {getInitials(membership.user?.full_name)}
                     </AvatarFallback>
                   </Avatar>
@@ -250,7 +250,7 @@ export function MemberManagement({ groupId }: MemberManagementProps) {
                   </Button>
                   <Button
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-primary hover:bg-primary/90"
                     onClick={() =>
                       handleStatusUpdate(membership.id, "approved")
                     }

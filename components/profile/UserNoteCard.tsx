@@ -106,17 +106,17 @@ export function UserNoteCard({ post, onUpdate }: UserNoteCardProps) {
       pending: {
         label: "Pending",
         variant: "outline" as const,
-        className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+        className: "bg-accent/10 text-accent-foreground border-accent/20",
       },
       approved: {
         label: "Approved",
         variant: "outline" as const,
-        className: "bg-green-500/10 text-green-600 border-green-500/20",
+        className: "bg-primary/10 text-primary border-primary/20",
       },
       rejected: {
         label: "Rejected",
         variant: "outline" as const,
-        className: "bg-red-500/10 text-red-600 border-red-500/20",
+        className: "bg-destructive/10 text-destructive border-destructive/20",
       },
     };
 
@@ -165,14 +165,14 @@ export function UserNoteCard({ post, onUpdate }: UserNoteCardProps) {
             </div>
           )}
           {post.approval_status === "rejected" && post.rejection_reason && (
-            <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+            <div className="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5" />
+                <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
                 <div>
-                  <p className="text-xs font-semibold text-red-600">
+                  <p className="text-xs font-semibold text-destructive">
                     Rejection Reason:
                   </p>
-                  <p className="text-xs text-red-600/80 mt-1">
+                  <p className="text-xs text-destructive/80 mt-1">
                     {post.rejection_reason}
                   </p>
                 </div>

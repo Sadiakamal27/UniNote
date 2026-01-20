@@ -69,7 +69,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       universal_admin: {
         label: "Admin",
         variant: "default",
-        className: "bg-purple-600",
+        className: "",
       },
       group_admin: { label: "Group Admin", variant: "secondary" },
       user: { label: "User", variant: "outline" },
@@ -136,10 +136,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <div className="flex items-center justify-between px-4 h-full">
             <Link href="/" className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">
-                Uni<span className="text-purple-600">Note</span>
+                Uni<span className="text-primary">Note</span>
               </h1>
             </Link>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+            </div>
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -183,10 +185,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <div className="flex items-center justify-between px-4 h-full">
           <Link href="/" className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">
-              Uni<span className="text-purple-600">Note</span>
+              Uni<span className="text-primary">Note</span>
             </h1>
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -244,7 +248,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <div className="flex items-center gap-3 mb-3">
           <Avatar className="h-10 w-10">
             <AvatarImage src={profile?.avatar_url || undefined} />
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+            <AvatarFallback className="bg-primary/20 text-primary font-semibold border border-primary/20">
               {getInitials(profile?.full_name || null, profile?.email || null)}
             </AvatarFallback>
           </Avatar>

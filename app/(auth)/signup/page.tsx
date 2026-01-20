@@ -39,11 +39,11 @@ export default function SignUpPage() {
     if (/\d/.test(pwd)) strength++;
     if (/[^a-zA-Z\d]/.test(pwd)) strength++;
 
-    if (strength <= 2) return { strength, label: "Weak", color: "bg-red-500" };
+    if (strength <= 2) return { strength, label: "Weak", color: "bg-destructive" };
     if (strength <= 3)
-      return { strength, label: "Fair", color: "bg-yellow-500" };
-    if (strength <= 4) return { strength, label: "Good", color: "bg-blue-500" };
-    return { strength, label: "Strong", color: "bg-green-500" };
+      return { strength, label: "Fair", color: "bg-accent" };
+    if (strength <= 4) return { strength, label: "Good", color: "bg-primary" };
+    return { strength, label: "Strong", color: "bg-primary" };
   };
 
   const passwordStrength = password ? getPasswordStrength(password) : null;
